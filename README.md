@@ -91,13 +91,14 @@ Zobrist hashing is utilized to efficiently generate a hash key for a given game 
 Example:
 
 ```python
-from chessEngine import init_zobrist, zobrist_key, GameState
+from Zobirst_keys import init_zobrist, zobrist_key
+import ChessEngine
 
 # Initialize Zobrist table
 init_zobrist()
 
 # Initialize a game state
-game_state = GameState()
+game_state = new GameState()
 
 # Compute hash key for the current position
 hash_key = zobrist_key(game_state)
