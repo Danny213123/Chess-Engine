@@ -19,10 +19,10 @@ To use the chess engine, you can instantiate a `GameState` object and make moves
 Example:
 
 ```python
-from chessEngine import GameState, Move
+import ChessEngine
 
 # Initialize a game state
-game_state = GameState()
+game_state = ChessEngine.GameState()
 
 # Make a move
 move = Move((1, 0), (3, 0), game_state.board)
@@ -98,7 +98,7 @@ import ChessEngine
 init_zobrist()
 
 # Initialize a game state
-game_state = new GameState()
+game_state = ChessEngine.GameState()
 
 # Compute hash key for the current position
 hash_key = zobrist_key(game_state)
@@ -116,13 +116,16 @@ Once the engine determines the best move, it executes the move on the board. The
 adjusting piece positions, and handling special moves such as castling, en passant, and pawn promotion.
 
 ```python
-from chess_engine import make_move, GameState
+import ChessEngine
+import ChessAlgorithm
 
 # Initialize a game state
-game_state = GameState()
+game_state = ChessEngine.GameState()
 
 # Get the best move using Alpha-Beta Pruning
-best_move = get_best_move(game_state)
+temp_gs = game_state
+valid_moves = game_state.get_valid_moves()
+ai_move = ChessAlgorithm.find_best_move(temp_gs, valid_moves)
 
 # Make the move on the board
 make_move(game_state, best_move)
