@@ -19,7 +19,7 @@ To use the chess engine, you can instantiate a `GameState` object and make moves
 Example:
 
 ```python
-from chess_engine import GameState, Move
+from chessEngine import GameState, Move
 
 # Initialize a game state
 game_state = GameState()
@@ -91,7 +91,7 @@ Zobrist hashing is utilized to efficiently generate a hash key for a given game 
 Example:
 
 ```python
-from chess_engine import init_zobrist, zobrist_key, GameState
+from chessEngine import init_zobrist, zobrist_key, GameState
 
 # Initialize Zobrist table
 init_zobrist()
