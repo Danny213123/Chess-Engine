@@ -32,7 +32,7 @@ game_state.make_move(move)
 print(game_state.board)
 ```
 
-## Alpha-Beta Pruning Algorithm
+## Move Generation
 
 Alpha-Beta Pruning is an optimization technique used in decision trees and game trees to reduce the number of nodes evaluated in the search tree. It is commonly applied in two-player games, such as chess, to enhance the efficiency of the minimax algorithm.
 
@@ -130,3 +130,8 @@ ai_move = ChessAlgorithm.find_best_move(temp_gs, valid_moves)
 # Make the move on the board
 make_move(game_state, best_move)
 ```
+
+## TODO
+
+1. Transposition Table Caching
+2. Threats Calculator
