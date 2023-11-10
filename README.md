@@ -135,3 +135,4 @@ make_move(game_state, best_move)
 
 1. Transposition Table Caching
 2. Threats Calculator
+3. Bitboard
