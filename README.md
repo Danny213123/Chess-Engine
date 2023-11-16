@@ -139,6 +139,6 @@ make_move(game_state, best_move)
 
 ## TODO
 
-1. Transposition Table Caching
+1. Openings
 2. Threats Calculator
 3. Bitboard
