@@ -131,6 +131,12 @@ ai_move = ChessAlgorithm.find_best_move(temp_gs, valid_moves)
 make_move(game_state, best_move)
 ```
 
+## Experimental
+
+1. Negascout
+2. Move Ordering
+3. Iterative Deepening
+
 ## TODO
 
 1. Transposition Table Caching
