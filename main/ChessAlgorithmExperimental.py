@@ -2,7 +2,7 @@ import random
 import Zobrist_keys
 import time
 
-score_dict = {"Q": 11, "B": 7, "R": 8, "N": 5, "P": 1, "K": 0}
+score_dict = {"Q": 1100, "B": 70, "R": 80, "N": 50, "P": 10, "K": 0}
 
 knight_score = [
     [1, 1, 1, 1, 1, 1, 1, 1],
@@ -27,14 +27,14 @@ bishop_score = [
 ]
 
 rook_score = [
-    [4, 3, 4, 4, 4, 4, 3, 4],
-    [4, 4, 4, 4, 4, 4, 4, 4],
+    [1, 3, 10, 10, 10, 4, 3, 1],
+    [1, 4, 9, 9, 9, 4, 4, 1],
     [1, 1, 2, 3, 3, 2, 1, 1],
     [1, 2, 3, 4, 4, 3, 2, 1],
     [1, 2, 3, 4, 4, 3, 2, 1],
     [1, 1, 2, 2, 2, 2, 1, 1],
-    [4, 4, 4, 4, 4, 4, 4, 4],
-    [4, 3, 4, 4, 4, 4, 3, 4]
+    [1, 4, 9, 9, 9, 4, 4, 1],
+    [1, 3, 10, 10, 10, 4, 3, 1]
 ]
 
 queen_score = [
@@ -52,8 +52,8 @@ white_pawn_score = [
     [8, 8, 8, 8, 8, 8, 8, 8],
     [8, 8, 8, 8, 8, 8, 8, 8],
     [5, 6, 7, 7, 7, 7, 6, 5],
-    [2, 3, 3, 5, 5, 3, 3, 2],
-    [1, 2, 3, 4, 4, 3, 2, 1],
+    [2, 3, 3, 10, 10, 3, 3, 2],
+    [1, 2, 3, 10, 10, 3, 2, 1],
     [1, 1, 2, 3, 3, 2, 1, 1],
     [1, 1, 1, 0, 0, 1, 1, 1],
     [0, 0, 0, 0, 0, 0, 0, 0]
@@ -63,12 +63,24 @@ black_pawn_score = [
     [0, 0, 0, 0, 0, 0, 0, 0],
     [1, 1, 1, 0, 0, 1, 1, 1],
     [1, 1, 2, 3, 3, 2, 1, 1],
-    [1, 2, 3, 4, 4, 3, 2, 1],
-    [2, 3, 3, 5, 5, 3, 3, 2],
+    [1, 2, 3, 10, 10, 3, 2, 1],
+    [2, 3, 3, 10, 10, 3, 3, 2],
     [5, 6, 7, 7, 7, 7, 6, 5],
     [8, 8, 8, 8, 8, 8, 8, 8],
     [8, 8, 8, 8, 8, 8, 8, 8]
 ]
+
+king_score = [
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+]
+
 
 # openings
 # https://www.chess.com/openings/Scandinavian-Defense-2.Nf3-d5-3.exd5-Qxd5
@@ -86,11 +98,12 @@ black_pawn_score = [
 # https://www.chess.com/openings/Scandinavian-Defense-2.Nf3-d5-3.exd5-Qxd5-4.Nc3-Qa5-5.d4-Bg4-6.Be2-Nf6-7.O-O-O
 
 piece_position = {"N": knight_score, "Q": queen_score, "B": bishop_score, "R": rook_score, "wP": white_pawn_score,
-                  "bP": black_pawn_score}
+                  "bP": black_pawn_score, 'K': king_score}
 
-DEPTH = 9
+DEPTH = 5
 
 transpositional_table = {}
+next_move = None
 
 def find_best_move(gs, valid_moves):
     global next_move, counter
@@ -102,19 +115,17 @@ def find_best_move(gs, valid_moves):
     start = time.time()
 
     for depth in range(1, DEPTH+1):
-        find_nega_max_alpha_beta(gs, valid_moves, depth, float("-inf"), float("inf"), 1 if gs.white else -1)
+        find_negascout(gs, valid_moves, depth, float("-inf"), float("inf"), 1 if gs.white else -1)
         print(f"Depth {depth} completed in {time.time() - start}s")
         if next_move is not None:
             break
 
     if next_move is None:
-        find_nega_max_alpha_beta(gs, valid_moves, 1, float("-inf"), float("inf"), 1 if gs.white else -1)
+        find_negascout(gs, valid_moves, 1, float("-inf"), float("inf"), 1 if gs.white else -1)
 
     print(f"Time taken: {time.time() - start}s")
     print(f"Positions evaluated: {counter}")
-    print(f"Move score: {next_move.score}")
     print(f"Transpositional table size: {len(transpositional_table)}")
-    print(f"Move: {next_move.get_chess_notation()}")
     return next_move
 
 def order_moves(valid_moves, gs):
@@ -126,51 +137,18 @@ def order_moves(valid_moves, gs):
             ordered_moves.append(move)
     return ordered_moves
 
-def score_board(gs):
-    if gs.checkmate:
-        if gs.white_to_move:
-            return -100000
-        else:
-            return 100000
-    elif gs.stalemate:
-        return 0
-
-    score = 0
-    for row in range(len(gs.board)):
-        for col in range(len(gs.board[row])):
-            piece = gs.board[row][col]
-            if piece != "--":
-                piece_position_score = 0
-                if piece[1] != "K":
-                    if piece[1] == "P":
-                        piece_position_score = pawn_score[piece[0]][row][col]
-                    else:
-                        piece_position_score = piece_position[piece[1]][row][col]
-                if piece[0] == "w":
-                    score += score_dict[piece[1]] + piece_position_score * .1
-                elif piece[0] == "b":
-                    score -= score_dict[piece[1]] + piece_position_score * .1
-
-    return score
-
 class TranspositionTableEntry():
     def __init__(self, depth, score, flag):
         self.depth = depth
         self.score = score
         self.flag = flag
 
-def find_nega_max_alpha_beta(gs, valid_moves, depth, alpha, beta, turn_multiplier):
+def find_negascout(gs, valid_moves, depth, alpha, beta, turn_multiplier):
     global next_move, counter
     counter += 1
 
     if depth == 0:
         return turn_multiplier * score_board(gs)
-
-    if len(valid_moves) == 0:
-        if gs.in_check():
-            return -100000 if turn_multiplier == 1 else 100000
-        else:
-            return 0
 
     # move ordering
     valid_moves = order_moves(valid_moves, gs)
@@ -194,32 +172,37 @@ def find_nega_max_alpha_beta(gs, valid_moves, depth, alpha, beta, turn_multiplie
         elif tt_entry.flag == "beta" and tt_entry.score >= beta:
             return beta
 
-    max_score = float("-inf")
+    best_score = float("-inf")
     for move in valid_moves:
         gs.make_move(move)
         next_moves = gs.get_valid_moves()
-        score = -find_nega_max_alpha_beta(gs, next_moves, depth - 1, -beta, -alpha, -turn_multiplier)
-        if score > max_score:
-            max_score = score
+        if best_score == float("-inf"):
+            score = -find_negascout(gs, next_moves, depth - 1, -beta, -alpha, -turn_multiplier)
+        else:
+            score = -find_negascout(gs, next_moves, depth - 1, -alpha - 1, -alpha, -turn_multiplier)
+            if alpha < score < beta:
+                score = -find_negascout(gs, next_moves, depth - 1, -beta, -score, -turn_multiplier)
+        if score > best_score:
+            best_score = score
             if depth == DEPTH:
                 next_move = move
         gs.undo_move()
-        alpha = max(alpha, max_score)
+        alpha = max(alpha, best_score)
         if alpha >= beta:
             break
 
-    if max_score <= alpha:
+    if best_score <= alpha:
         flag = "beta"
-    elif max_score >= beta:
+    elif best_score >= beta:
         flag = "alpha"
     else:
         flag = "exact"
 
-    tt_entry = TranspositionTableEntry(depth, max_score, flag)
+    tt_entry = TranspositionTableEntry(depth, best_score, flag)
     hash_k = Zobrist_keys.zobrist_key(gs)
     transpositional_table[hash_k] = tt_entry
 
-    return max_score
+    return best_score
 
 def score_board(gs):
     if gs.check_mate:
@@ -230,22 +213,122 @@ def score_board(gs):
 
     score = 0
 
+    # Piece scores
     for row in range(len(gs.board)):
         for col in range(len(gs.board[row])):
             square = gs.board[row][col]
             if square != "--":
+                piece_type = square[1]
+                piece_colour = square[0]
+                if piece_type == "P":
+                    piece_position_score = piece_position [piece_colour + piece_type][row][col]
+                else:
+                    piece_position_score = piece_position[piece_type][row][col]
 
-                piece_position_score = 0
-                if square[1] != "K":
-                    if square[1] == "P":
-                        piece_position_score = piece_position[square][row][col]
-                    else:
-                        piece_position_score = piece_position[square[1]][row][col]
+                # Mobility score
+                moves = gs.get_valid_moves_at_square(row, col)
+                mobility_score = len(moves)
 
-                if square[0] == "w":
-                    score += score_dict[square[1]] + piece_position_score
-                elif square[0] == "b":
-                    score -= score_dict[square[1]] + piece_position_score
+                # Center control score
+                center_control_score = 0
+                if (row, col) in [(3, 3), (3, 4), (4, 3), (4, 4)]:
+                    center_control_score = 1
+
+                # Open file/diagonal score
+                open_file_score = 0
+                open_diagonal_score = 0
+                if piece_type in ["R", "Q"]:
+                    if gs.is_file_open(col):
+                        open_file_score = 1
+                    if gs.is_diagonal_open(row, col):
+                        open_diagonal_score = 1
+                elif piece_type == "B":
+                    if gs.is_diagonal_open(row, col):
+                        open_diagonal_score = 1
+
+                # King attack score
+                king_attack_score = 0
+                if piece_type != "K":
+                    king_pos = gs.get_king_pos(piece_colour)
+                    if king_pos is not None:
+                        king_row, king_col = king_pos
+                        if (row, col) in gs.get_valid_moves_at_square(king_row, king_col):
+                            king_attack_score = 1
+
+                # Add up scores
+                piece_score = (
+                    score_dict[piece_type]
+                    + piece_position_score
+                    + mobility_score
+                    + center_control_score
+                    + open_file_score
+                    + open_diagonal_score
+                    + king_attack_score
+                )
+                if piece_colour == "w":
+                    score += piece_score
+                else:
+                    score -= piece_score
+
+    # Pawn scores
+    for row in range(len(gs.board)):
+        for col in range(len(gs.board[row])):
+            square = gs.board[row][col]
+            if square != "--" and square[1] == "P":
+                pawn_colour = square[0]
+                pawn_position_score = piece_position[square][row][col]
+
+                # Pawn promotion score
+                promotion_score = 0
+                if (pawn_colour == "w" and row == 0) or (pawn_colour == "b" and row == 7):
+                    promotion_score = 1
+
+                # Add up scores
+                pawn_score = score_dict["P"] + pawn_position_score + promotion_score
+                if pawn_colour == "w":
+                    score += pawn_score
+                else:
+                    score -= pawn_score
+
+    # King safety score
+    white_king_pos = gs.get_king_pos("w")
+    black_king_pos = gs.get_king_pos("b")
+    if white_king_pos is not None:
+        white_safety_score = gs.get_num_attacking_pieces(white_king_pos, "b")
+        score += white_safety_score
+    if black_king_pos is not None:
+        black_safety_score = gs.get_num_attacking_pieces(black_king_pos, "w")
+        score -= black_safety_score
+
+    # Remaining piece scores
+    white_piece_score = len(gs.get_all_pieces("w"))
+    black_piece_score = len(gs.get_all_pieces("b"))
+    score += white_piece_score - black_piece_score
+
+    # Remaining pawn scores
+    white_pawn_score = len(gs.get_all_pawns("w"))
+    black_pawn_score = len(gs.get_all_pawns("b"))
+    score += white_pawn_score - black_pawn_score
+
+    # Developed piece scores
+    white_developed_score = gs.get_num_developed_pieces("w")
+    black_developed_score = gs.get_num_developed_pieces("b")
+    score += white_developed_score - black_developed_score
+
+    # Piece on opponent's side score
+    white_opponent_side_score = gs.get_num_pieces_on_opponent_side("w")
+    black_opponent_side_score = gs.get_num_pieces_on_opponent_side("b")
+    score += white_opponent_side_score - black_opponent_side_score
+
+    # King defense score
+    white_king_defense_score = gs.get_num_defending_pieces(white_king_pos, "w")
+    black_king_defense_score = gs.get_num_defending_pieces(black_king_pos, "b")
+    score += white_king_defense_score - black_king_defense_score
+
+    # King attack score
+    white_king_attack_score = gs.get_num_attacking_pieces(white_king_pos, "w")
+    black_king_attack_score = gs.get_num_attacking_pieces(black_king_pos, "b")
+    score += white_king_attack_score - black_king_attack_score
 
     return score
 
@@ -255,8 +338,6 @@ class TranspositionTableEntry():
         self.score = score
         self.flag = flag
 
-transpositional_table = {}
-next_move = None
 
 def export_transposition_table():
     with open("main/transpositional_table.txt", "w") as f:
