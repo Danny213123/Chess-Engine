@@ -136,9 +136,9 @@ Transpositional table size: 94736
 ## Old
 
 Format:
-TranspositionTableSize
-PositionsSearched
-Time Taken
+1. TranspositionTableSize
+2. PositionsSearched
+3. Time Taken
 
 ```
 1112
