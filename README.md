@@ -2,6 +2,11 @@
 
 This project is a simple chess engine implemented in Python, providing a basic framework for playing chess, move generation, and position hashing using Zobrist hashing.
 
+## Requirements:
+
+1. pygame
+2. stockfish
+
 ## Features
 
 - **Chessboard Representation:** The chessboard is represented as a 2D array, and the game state is maintained using a `GameState` class.
