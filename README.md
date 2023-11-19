@@ -21,17 +21,14 @@ To use the chess engine, you can instantiate a `GameState` object and make moves
 Example:
 
 ```python
-import ChessEngine
+from engine.chess_engine import *
+from engine.chess_algorithm import *
+from visual import *
 
-# Initialize a game state
-game_state = ChessEngine.GameState()
 
-# Make a move
-move = Move((1, 0), (3, 0), game_state.board)
-game_state.make_move(move)
-
-# Print the updated board
-print(game_state.board)
+ChessEngine = GameState()
+print(ChessEngine.board)
+visualize("stockfish")
 ```
 
 ## Move Generation
@@ -60,26 +57,111 @@ The pruning occurs when a player discovers a move that is guaranteed to be worse
 Here's a simplified pseudocode for the Alpha-Beta Pruning algorithm:
 
 ```python
-function alpha_beta_pruning(node, depth, alpha, beta, maximizing_player):
-    if depth == 0 or node is a terminal node:
-        return the heuristic value of node
+# base case
+if depth == 0:
+    return turn_multiplier * score_board(game_state)
 
-    if maximizing_player:
-        value = -infinity
-        for each child in node:
-            value = max(value, alpha_beta_pruning(child, depth - 1, alpha, beta, False))
-            alpha = max(alpha, value)
-            if beta <= alpha:
-                break  # Beta cut-off
-        return value
+# move ordering
+valid_moves = order_moves(valid_moves, game_state)
+
+# get hash key
+hash_k = chess_hash.zobrist_key(game_state)
+
+# check if transpositional table is empty
+if len(transpositional_table) == 0:
+    tt_entry = None
+else:
+    tt_entry = transpositional_table.get(hash_k)
+
+# check if transpositional table entry is valid
+if tt_entry is not None and tt_entry.depth >= depth:
+
+    # check transpositional table entry flag
+    if tt_entry.flag == "exact":
+
+        return tt_entry.score
+    
+    # if flag is alphga, check if score is less than alpha
+    elif tt_entry.flag == "alpha" and tt_entry.score <= alpha:
+
+        return alpha
+    
+    # if flag is beta, check if score is greater than beta
+    elif tt_entry.flag == "beta" and tt_entry.score >= beta:
+
+        return beta
+
+# initial score
+best_score = float("-inf")
+
+# iterate through valid moves
+for move in valid_moves:
+
+    # make move
+    game_state.make_move(move)
+
+    # get next moves
+    next_moves = game_state.get_valid_moves()
+
+    # recursive call
+    if best_score == float("-inf"):
+
+        score = -find_negascout(game_state, next_moves, depth - 1, -beta, -alpha, -turn_multiplier)
+
     else:
-        value = infinity
-        for each child in node:
-            value = min(value, alpha_beta_pruning(child, depth - 1, alpha, beta, True))
-            beta = min(beta, value)
-            if beta <= alpha:
-                break  # Alpha cut-off
-        return value
+
+        score = -find_negascout(game_state, next_moves, depth - 1, -alpha - 1, -alpha, -turn_multiplier)
+
+        # check if score is between alpha and beta
+        if alpha < score < beta:
+
+            # recursive call
+            score = -find_negascout(game_state, next_moves, depth - 1, -beta, -score, -turn_multiplier)
+
+    # if score is greater than best score, update best score
+    if score > best_score:
+
+        best_score = score
+
+        # check if depth is 0
+        if depth == DEPTH:
+
+            # update next move
+            next_move = move
+
+    # undo move
+    game_state.undo_move()
+
+    # update alpha
+    alpha = max(alpha, best_score)
+
+    # check if alpha is greater than or equal to beta
+    if alpha >= beta:
+        break
+
+# check if best score is less than or equal to alpha
+if best_score <= alpha:
+
+    flag = "beta"
+
+# check if best score is greater than or equal to beta
+elif best_score >= beta:
+
+    flag = "alpha"
+
+# otherwise, flag is exact
+else:
+    flag = "exact"
+
+# create transpositional table entry
+tt_entry = TranspositionTableEntry(depth, best_score, flag)
+
+# add entry to transpositional table
+hash_k = chess_hash.zobrist_key(game_state)
+
+transpositional_table[hash_k] = tt_entry
+
+return best_score
 ```
 
 ## Engine Moves
