@@ -12,6 +12,8 @@ This project is a simple chess engine implemented in Python, providing a basic f
 
 - **Undo Move:** The engine supports undoing moves, allowing for exploration of different lines of play.
 
+- **Game Visualization** Using pygame, the board is visualized including move highlighting
+
 ## Usage
 
 To use the chess engine, you can instantiate a `GameState` object and make moves using the `make_move` method. You can also generate valid moves for a given position using the `get_valid_moves` method.
