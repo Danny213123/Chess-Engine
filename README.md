@@ -52,9 +52,7 @@ Alpha-Beta Pruning enhances the minimax algorithm by introducing two parameters,
 
 The pruning occurs when a player discovers a move that is guaranteed to be worse than a previously examined move. If the current move is worse than the best move found so far, it can be safely ignored, and the search can be pruned. This reduces the number of nodes evaluated, significantly improving the efficiency of the search.
 
-### Pseudocode
-
-Here's a simplified pseudocode for the Alpha-Beta Pruning algorithm:
+### Code Snip
 
 ```python
 # base case
