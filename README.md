@@ -161,8 +161,41 @@ transpositional_table[hash_k] = tt_entry
 return best_score
 ```
 
-## TODO
+## Features:
 
-1. Transposition Table Caching
-2. Threats Calculator
-3. Bitboard
+# Chess Engine:
+
+```
+get_fen -> Returns the FEN (Forsyth-Edwards Notation) representation of the current chess position.
+
+make_move -> Makes a move on the chess board and updates the game state accordingly.
+
+undo_move -> Undoes the last move made on the chess board and restores the previous game state.
+
+get_valid_moves -> Returns a list of all valid moves for the current player in the current game state.
+
+square_under_attack -> Checks if a given square on the chess board is under attack by any opponent piece.
+
+check_for_pins_and_checks -> Checks for pinned pieces and checks on the current chess board.
+
+get_all_possible_moves -> Returns a list of all possible moves for the current player in the current game state.
+
+get_pawn_moves -> Generates all possible moves for a pawn piece on the chess board.
+
+get_rook_moves -> Generates all possible moves for a rook piece on the chess board.
+
+get_bishop_moves -> Generates all possible moves for a bishop piece on the chess board.
+
+get_knight_moves -> Generates all possible moves for a knight piece on the chess board.
+
+get_queen_moves -> Generates all possible moves for a queen piece on the chess board.
+
+get_king_moves -> Generates all possible moves for a king piece on the chess board.
+
+get_castle_moves -> Generates all possible castle moves for the king on the chess board.
+
+get_king_side_castle_moves -> Generates all possible king side castle moves for the king on the chess board.
+
+get_queen_side_castle_moves -> Generates all possible queen side castle moves for the king on the chess board.
+
+```
