@@ -25,7 +25,6 @@ from engine.chess_engine import *
 from engine.chess_algorithm import *
 from visual import *
 
-
 ChessEngine = GameState()
 print(ChessEngine.board)
 visualize("stockfish")
