@@ -162,55 +162,13 @@ transpositional_table[hash_k] = tt_entry
 return best_score
 ```
 
-## Engine Moves
+## Features:
 
-The chess engine employs a combination of various algorithms and strategies to determine its moves during a game. Here's an overview of the key components involved in the engine's decision-making process:
-
-### Zobrist Hashing
-
-Zobrist hashing is utilized to efficiently generate a hash key for a given game state. The `init_zobrist` function initializes a table of random bitstrings, and the `zobrist_key` function computes the hash key for a specific game state. This hashing mechanism is crucial for quick position evaluation and identifying repeated positions.
-
-Example:
-
-```python
-from Zobirst_keys import init_zobrist, zobrist_key
-import ChessEngine
-
-# Initialize Zobrist table
-init_zobrist()
-
-# Initialize a game state
-game_state = ChessEngine.GameState()
-
-# Compute hash key for the current position
-hash_key = zobrist_key(game_state)
-print("Hash Key:", hash_key)
 ```
-
-### Compute hash key for the current position
-```python
-hash_key = zobrist_key(game_state)
-print("Hash Key:", hash_key)
-```
-
-## Move Execution
-Once the engine determines the best move, it executes the move on the board. The move execution involves updating the game state, 
-adjusting piece positions, and handling special moves such as castling, en passant, and pawn promotion.
-
-```python
-import ChessEngine
-import ChessAlgorithm
-
-# Initialize a game state
-game_state = ChessEngine.GameState()
-
-# Get the best move using Alpha-Beta Pruning
-temp_gs = game_state
-valid_moves = game_state.get_valid_moves()
-ai_move = ChessAlgorithm.find_best_move(temp_gs, valid_moves)
-
-# Make the move on the board
-make_move(game_state, best_move)
+ChessEngine.get_fen() -> Chess Fen
+ChessEngine.make_move() -> Make Move
+ChessEngine.undo_move() -> Undo Move
+ChessEngine.get_pins_and_checks() -> Get a list of all pins and checks
 ```
 
 ## TODO
