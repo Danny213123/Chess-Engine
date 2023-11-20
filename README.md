@@ -162,15 +162,6 @@ transpositional_table[hash_k] = tt_entry
 return best_score
 ```
 
-## Features:
-
-```
-ChessEngine.get_fen() -> Chess Fen
-ChessEngine.make_move() -> Make Move
-ChessEngine.undo_move() -> Undo Move
-ChessEngine.get_pins_and_checks() -> Get a list of all pins and checks
-```
-
 ## TODO
 
 1. Transposition Table Caching
