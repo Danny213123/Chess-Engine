@@ -42,7 +42,12 @@ class GameState:
                                                   self.current_castling_rights.bks, self.current_castling_rights.bqs)]
 
     # turn board into fen
-    def get_fen(self):
+    def get_fen(self) -> None:
+        '''
+        Get the FEN string of the board
+        :param self
+        :return: None
+        '''
 
         fen_char = {
             "wR": "R", "wN": "N", "wB": "B", "wQ": "Q", "wK": "K", "wP": "P",
