@@ -17,8 +17,8 @@
 import random
 import time
 import pickle
-
 import engine.chess_hash as chess_hash
+
 from engine.chess_heuristic_calculation import score_board, positional_score
 from engine.chess_transposition_table import TranspositionTableEntry
 
