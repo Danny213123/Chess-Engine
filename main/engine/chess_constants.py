@@ -1,6 +1,6 @@
 PATH = 'main\stockfish\stockfish-windows-x86-64-avx2.exe'
 DEPTH = 15
-THREADS = 4
+THREADS = 6
 MINIMUM_THINKING_TIME = 30
 SKILL_LEVEL = 20
 PONDER = True
