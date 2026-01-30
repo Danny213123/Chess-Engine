@@ -1,9 +1,9 @@
 import pygame
 
 
-import engine.chess_engine as chess_engine
-import engine.chess_hash as chess_hash
-import engine.chess_algorithm as chess_algorithm
+import engine.v1.chess_engine as chess_engine
+import engine.v1.chess_hash as chess_hash
+import engine.v1.chess_algorithm as chess_algorithm
 
 from visual_helpers import *
 
@@ -31,8 +31,8 @@ def visualize(engine):
     # load zobrist keys
     chess_hash.load_zobrist()
 
-    if engine != "stockfish":
-        chess_algorithm.import_transposition_table()
+    # load transpositional table
+    chess_algorithm.import_transposition_table()
 
     # get valid moves
     valid_moves = game_state.get_valid_moves()

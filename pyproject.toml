@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chess_engine"
+version = "0.1.0"
+description = "A simple Python chess engine"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+authors = [
+    {name = "Danny Guan"}
+]
+dependencies = [
+    "pygame",
+    "fastapi",
+    "uvicorn",
+    "pydantic"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+
+[tool.setuptools.packages.find]
+where = ["main"]
+include = ["engine*", "visual*"]
+namespaces = false
