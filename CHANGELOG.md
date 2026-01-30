@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-01-30
+
+### Added
+- **V3 Engine with GPU/CPU Support**:
+  - `device.py` - Automatic CUDA detection with CPU fallback
+  - `cuda_kernels.py` - Numba CUDA batch evaluation kernels
+  - `parallel_search.py` - Thread pool for parallel root search
+  - `chess_transposition_table.py` - Thread-safe TT with RLock
+
+- **Thread Safety**:
+  - Thread-local counters for search statistics
+  - Locked history and killer move tables
+  - Thread-safe transposition table with automatic eviction
+  - Support for 15+ CPU threads on multi-core systems
+
+- **GPU Acceleration (CUDA)**:
+  - Batch position evaluation kernel
+  - Automatic CPU fallback if CUDA unavailable
+  - 512MB VRAM budget enforcement
+  - Memory usage monitoring
+
+### Dependencies
+- Added `numba>=0.63.0` for CUDA support
+- Added `llvmlite>=0.46.0` (numba dependency)
+
+---
+
 ## [2.0.0] - 2026-01-30
 
 ### Added
