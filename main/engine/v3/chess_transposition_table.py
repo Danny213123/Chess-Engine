@@ -17,7 +17,7 @@ class TTEntry:
 class ThreadSafeTranspositionTable:
     """Thread-safe transposition table with size limit."""
     
-    def __init__(self, max_entries: int = 1_000_000):
+    def __init__(self, max_entries: int = 10_000_000):
         self._table: Dict[int, TTEntry] = {}
         self._lock = threading.RLock()
         self._max_entries = max_entries

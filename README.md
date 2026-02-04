@@ -14,6 +14,17 @@ This project is a simple chess engine implemented in Python, providing a basic f
 
 - **Game Visualization** Using pygame, the board is visualized including move highlighting
 
+## Installation
+
+```bash
+pip install .
+```
+
+Or for development:
+```bash
+pip install -e .[dev]
+```
+
 ## Usage
 
 To use the chess engine, you can instantiate a `GameState` object and make moves using the `make_move` method. You can also generate valid moves for a given position using the `get_valid_moves` method.
@@ -27,7 +38,7 @@ from visual import *
 
 ChessEngine = GameState()
 print(ChessEngine.board)
-visualize("stockfish")
+visualize("v1")
 ```
 
 ## Move Generation

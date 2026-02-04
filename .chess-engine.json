@@ -1,0 +1,9 @@
+{
+  "threads": null,
+  "ttSize": 64,
+  "maxMemory": 512,
+  "timeLimit": 6700,
+  "v6Built": true,
+  "lastBuildTime": "2026-02-01T21:30:30.526Z",
+  "cmakePath": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe"
+}

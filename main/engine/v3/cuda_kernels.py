@@ -9,7 +9,8 @@ try:
     from numba import cuda
     import numba
     CUDA_AVAILABLE = cuda.is_available()
-except ImportError:
+except (ImportError, Exception) as e:
+    print(f"[WARNING] CUDA import failed: {e}")
     CUDA_AVAILABLE = False
     cuda = None
     numba = None

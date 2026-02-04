@@ -42,8 +42,9 @@ class ParallelSearchManager:
         Returns:
             List of (move, score) tuples
         """
-        if self._device.is_cpu and self._device.num_threads > 1:
-            # CPU multi-threaded search
+        # Always use multi-threading for root search if multiple threads are available
+        # This allows CPU parallelism (Lazy SMP) even if we have a GPU
+        if self._device.num_threads > 1:
             executor = self._get_executor()
             futures = [executor.submit(search_fn, move) for move in moves]
             results = []
@@ -54,7 +55,7 @@ class ParallelSearchManager:
                     print(f"[V3] Search error: {e}")
             return results
         else:
-            # Single-threaded or GPU (GPU handles batching internally)
+            # Single-threaded fallback
             return [search_fn(move) for move in moves]
     
     def shutdown(self):

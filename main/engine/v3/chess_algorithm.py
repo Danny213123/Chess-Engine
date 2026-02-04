@@ -5,11 +5,19 @@
 import random
 import time
 import threading
+import copy
 from typing import Optional, List, Dict, Any
 
 from . import chess_hash
 from .chess_opening_book import OpeningBook
-from .chess_heuristic_calculation import score_board
+# Use Numba-optimized evaluation for performance and threading support
+try:
+    from .cpu_kernels import score_board_fast as score_board
+except ImportError:
+    # Fallback if Numba not working
+    print("[V3] Numba optimized eval not available, using Python version")
+    from .chess_heuristic_calculation import score_board
+
 from .chess_transposition_table import (
     ThreadSafeTranspositionTable, TTEntry,
     get_transposition_table, clear_transposition_table
@@ -41,21 +49,32 @@ killer_moves = [[None, None] for _ in range(64)]
 # Thread-local storage for search state
 _thread_local = threading.local()
 
+# Global total for stats (updated by main thread after batches)
+_total_nodes = 0
+
 def get_counter():
     """Thread-safe counter access."""
     if not hasattr(_thread_local, 'counter'):
         _thread_local.counter = 0
     return _thread_local.counter
 
-def increment_counter():
+def increment_counter(count=1):
     """Thread-safe counter increment."""
     if not hasattr(_thread_local, 'counter'):
         _thread_local.counter = 0
-    _thread_local.counter += 1
+    _thread_local.counter += count
 
 def reset_counter():
     """Reset thread-local counter."""
+    global _total_nodes
     _thread_local.counter = 0
+    _total_nodes = 0
+
+def get_total_nodes():
+    """Get total nodes searched (main thread + estimated others)."""
+    # This is an approximation for parallel search as we can't easily peek into other threads
+    # For reporting purposes, we'll use the tracked total + current thread
+    return _total_nodes + get_counter()
 
 
 def clear_search_state():
@@ -305,25 +324,65 @@ def find_top_moves(game_state, valid_moves, engine, top_n=5):
         else:
             valid_moves = order_moves(valid_moves, game_state, 0, use_see=True)
 
-        for move in valid_moves:
-            game_state.make_move(move)
-            next_moves = game_state.get_valid_moves()
-            
-            score = -negascout(game_state, next_moves, depth - 1, -beta, -alpha, -turn_multiplier, 1)
-            
-            game_state.undo_move()
-            
-            if score is None:
-                score = float("-inf")
-            
-            scores[move] = score
-            
-            if score > alpha:
-                alpha = score
-                best_move_at_depth = move
+        # 1. PV Move (Serial Search)
+        best_move_node = valid_moves[0]
+        game_state.make_move(best_move_node)
+        next_moves = game_state.get_valid_moves()
         
+        # Exact search for PV node
+        score = -negascout(game_state, next_moves, depth - 1, -beta, -alpha, -turn_multiplier, 1)
+        game_state.undo_move()
+        
+        scores[best_move_node] = score
+        if score > alpha:
+            alpha = score
+            best_move_at_depth = best_move_node
+
+        # 2. Remaining Moves (Parallel Search)
+        remaining_moves = valid_moves[1:]
+        if remaining_moves:
+            # Worker function for parallel search
+            # Worker function for parallel search
+            def search_worker(move):
+                # Reset worker-local counter for this task
+                reset_counter()
+                
+                # Clone state for thread safety
+                gs_clone = copy.deepcopy(game_state)
+                gs_clone.make_move(move)
+                nm = gs_clone.get_valid_moves()
+                
+                # PVS: Null Window Search first
+                s = -negascout(gs_clone, nm, depth - 1, -alpha - 1, -alpha, -turn_multiplier, 1)
+                
+                # Re-search if window failed
+                if alpha < s < beta:
+                     s = -negascout(gs_clone, nm, depth - 1, -beta, -alpha, -turn_multiplier, 1)
+                
+                # Return move, score, AND nodes searched by this worker
+                return move, s, get_counter()
+
+            # Run in parallel
+            search_manager = get_search_manager()
+            results = search_manager.parallel_root_search(remaining_moves, search_worker)
+            
+            # Process results
+            global _total_nodes
+            for result_item in results:
+                # Handle both 2-item (old) and 3-item (new) tuples for compatibility
+                if len(result_item) == 3:
+                    move, s, nodes = result_item
+                    _total_nodes += nodes
+                else:
+                    move, s = result_item
+                
+                scores[move] = s
+                if s > alpha:
+                    alpha = s
+                    best_move_at_depth = move
+
         elapsed = time.time() - start
-        print(f"Depth {depth}: {counter} nodes, {elapsed:.2f}s, best={best_move_at_depth} ({alpha})")
+        print(f"Depth {depth}: {get_total_nodes()} nodes, {elapsed:.2f}s, best={best_move_at_depth} ({alpha})")
 
     sorted_moves = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     

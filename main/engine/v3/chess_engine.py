@@ -129,6 +129,91 @@ class GameState:
             fen += "q"
         return fen
 
+    def set_fen(self, fen: str) -> bool:
+        '''
+        Set the game state from a FEN string
+        :param fen: FEN string
+        :return: True if successful, False otherwise
+        '''
+        try:
+            parts = fen.strip().split()
+            if len(parts) < 2:
+                return False
+            
+            board_str = parts[0]
+            active_color = parts[1] if len(parts) > 1 else 'w'
+            castling = parts[2] if len(parts) > 2 else 'KQkq'
+            ep_square = parts[3] if len(parts) > 3 else '-'
+            
+            # Parse piece placement
+            fen_to_piece = {
+                'R': 'wR', 'N': 'wN', 'B': 'wB', 'Q': 'wQ', 'K': 'wK', 'P': 'wP',
+                'r': 'bR', 'n': 'bN', 'b': 'bB', 'q': 'bQ', 'k': 'bK', 'p': 'bP',
+            }
+            
+            # Clear board
+            self.board = [["--" for _ in range(8)] for _ in range(8)]
+            
+            rows = board_str.split('/')
+            if len(rows) != 8:
+                return False
+            
+            for rank, row in enumerate(rows):
+                col = 0
+                for char in row:
+                    if char.isdigit():
+                        col += int(char)
+                    elif char in fen_to_piece:
+                        self.board[rank][col] = fen_to_piece[char]
+                        # Update king positions
+                        if char == 'K':
+                            self.white_king = (rank, col)
+                        elif char == 'k':
+                            self.black_king = (rank, col)
+                        col += 1
+                    else:
+                        return False  # Invalid character
+            
+            # Initialize bitboards from board
+            self._init_bitboards_from_board()
+            
+            # Set active color
+            self.white = (active_color.lower() == 'w')
+            
+            # Set castling rights
+            self.current_castling_rights.wks = 'K' in castling
+            self.current_castling_rights.wqs = 'Q' in castling
+            self.current_castling_rights.bks = 'k' in castling
+            self.current_castling_rights.bqs = 'q' in castling
+            self.castling_rights_log = [castle_rights(
+                self.current_castling_rights.wks, 
+                self.current_castling_rights.wqs,
+                self.current_castling_rights.bks, 
+                self.current_castling_rights.bqs
+            )]
+            
+            # Set en passant
+            if ep_square != '-' and len(ep_square) == 2:
+                col = ord(ep_square[0]) - ord('a')
+                row = 8 - int(ep_square[1])
+                self.enpassant_possible = (row, col)
+            else:
+                self.enpassant_possible = ()
+            
+            # Reset game state
+            self.move_log = []
+            self.check_mate = False
+            self.stale_mate = False
+            self.in_check = False
+            self.pins = []
+            self.checks = []
+            
+            return True
+        except Exception as e:
+            print(f"Error parsing FEN: {e}")
+            return False
+
+
     def make_move(self, move) -> None:
         '''
         Make a move and update board
@@ -156,7 +241,8 @@ class GameState:
 
         # pawn promotion
         if move.pawn_promotion:
-            self.board[move.end_row][move.end_col] = move.pieceMoved[0] + "Q"
+            promo_piece = getattr(move, 'promotion_piece', 'Q')
+            self.board[move.end_row][move.end_col] = move.pieceMoved[0] + promo_piece
 
         # enpassant
         if move.enpassant_move:
@@ -691,8 +777,9 @@ class GameState:
         if move.pawn_promotion:
             # Remove pawn from end_sq (added in step 1)
             self.bitboards[piece] = pop_bit(self.bitboards[piece], end_sq)
-            # Add promoted piece (Queen by default in v1)
-            promoted_piece = piece[0] + "Q"
+            # Add promoted piece (use promotion_piece if set, else Queen)
+            promo_piece = getattr(move, 'promotion_piece', 'Q')
+            promoted_piece = piece[0] + promo_piece
             self.bitboards[promoted_piece] = set_bit(self.bitboards[promoted_piece], end_sq)
             
         elif move.enpassant_move:
@@ -756,7 +843,8 @@ class GameState:
             # So step 1 failed to clear the Queen.
             
             # Correct logic:
-            promoted_piece = piece[0] + "Q"
+            promo_piece = getattr(move, 'promotion_piece', 'Q')
+            promoted_piece = piece[0] + promo_piece
             self.bitboards[promoted_piece] = pop_bit(self.bitboards[promoted_piece], end_sq)
             # Pawn is already added to start_sq by step 1?
             # Step 1: pop pawn from end_sq. (Pawn is NOT at end_sq). This does nothing.

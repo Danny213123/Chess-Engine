@@ -93,14 +93,28 @@ const CustomBoard = ({ fen, onMove, orientation = 'white', log, hints = [] }) =>
         setSelectedSq(null);
     };
 
-    // Rendering
+    // Rendering - respect orientation prop
+    const isFlipped = orientation === 'black';
     const squares = [];
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
+
+    for (let displayR = 0; displayR < 8; displayR++) {
+        for (let displayC = 0; displayC < 8; displayC++) {
+            // Map display position to actual board position based on orientation
+            const r = isFlipped ? (7 - displayR) : displayR;
+            const c = isFlipped ? (7 - displayC) : displayC;
+
             const isDark = (r + c) % 2 === 1;
             const sqName = getSquareName(r, c);
             const piece = board[r][c];
             const isSelected = selectedSq === sqName;
+
+            // Coordinate labels - ranks on right edge (displayC === 7), files on bottom (displayR === 7)
+            const showRank = displayC === 7;
+            const showFile = displayR === 7;
+
+            // Get the correct label based on orientation
+            const rankLabel = isFlipped ? (displayR + 1) : (8 - displayR);
+            const fileLabel = isFlipped ? String.fromCharCode(104 - displayC) : String.fromCharCode(97 + displayC); // 'h' to 'a' or 'a' to 'h'
 
             squares.push(
                 <div
@@ -108,6 +122,8 @@ const CustomBoard = ({ fen, onMove, orientation = 'white', log, hints = [] }) =>
                     className={`square ${isDark ? 'dark' : 'light'} ${isSelected ? 'selected' : ''}`}
                     onClick={() => handleSquareClick(r, c)}
                 >
+                    {showRank && <span className="coord-rank">{rankLabel}</span>}
+                    {showFile && <span className="coord-file">{fileLabel}</span>}
                     {piece && <img src={PIECE_IMAGES[piece]} alt={piece} className="piece-img" />}
                 </div>
             );

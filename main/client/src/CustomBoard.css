@@ -2,11 +2,11 @@
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: 600px;
-    height: 600px;
-    border: 4px solid #333;
+    width: 100%;
+    height: 100%;
+    border: none;
     position: relative;
-    /* For SVG overlay */
+    aspect-ratio: 1 / 1;
 }
 
 .arrow-overlay {
@@ -49,10 +49,33 @@
     user-select: none;
 }
 
-.coord {
+.coord-rank {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+}
+
+.coord-file {
     position: absolute;
     bottom: 2px;
-    right: 2px;
-    font-size: 10px;
-    color: #333;
+    left: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    user-select: none;
+}
+
+/* Colors for coordinates based on square background */
+.square.light .coord-rank,
+.square.light .coord-file {
+    color: #779556;
+}
+
+.square.dark .coord-rank,
+.square.dark .coord-file {
+    color: #ebecd0;
 }

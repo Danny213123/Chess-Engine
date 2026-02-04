@@ -1,0 +1,34 @@
+{
+    "name": "chess-engine-cli",
+    "version": "1.0.0",
+    "description": "CLI tool to manage Chess Engine builds, server, and configuration",
+    "main": "cli/src/index.js",
+    "bin": {
+        "chess-engine": "./cli/bin/chess-engine.js"
+    },
+    "scripts": {
+        "start": "node cli/bin/chess-engine.js",
+        "cli": "node cli/bin/chess-engine.js",
+        "build:v6": "node cli/bin/chess-engine.js build v6",
+        "build:client": "cd main/client && npm run build",
+        "server": "python run_ui.py",
+        "dev": "node cli/bin/chess-engine.js run-all"
+    },
+    "keywords": [
+        "chess",
+        "engine",
+        "cli",
+        "c++",
+        "openmp"
+    ],
+    "author": "Danny213123",
+    "license": "MIT",
+    "engines": {
+        "node": ">=14.0.0"
+    },
+    "files": [
+        "cli/",
+        "main/",
+        "README.md"
+    ]
+}
