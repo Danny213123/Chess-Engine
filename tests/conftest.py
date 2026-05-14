@@ -1,14 +1,10 @@
 """
 Shared pytest fixtures for chess engine tests.
 """
-import sys
-import os
 
-# Add parent directory to path to allow imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'main'))
 
 import pytest
-from engine.v2.chess_engine import GameState, Move
+from chess_engine.engine.v2.chess_engine import GameState, Move
 
 
 @pytest.fixture

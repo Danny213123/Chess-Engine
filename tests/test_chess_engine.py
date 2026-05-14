@@ -1,13 +1,9 @@
 """
 Tests for the chess engine core functionality.
 """
-import sys
-import os
 
-# Add parent directory to path to allow imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'main'))
 
-from engine.v2.chess_engine import GameState, Move
+from chess_engine.engine.v2.chess_engine import GameState, Move
 
 
 class TestGameState:

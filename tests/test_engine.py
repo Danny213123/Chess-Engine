@@ -1,13 +1,9 @@
-import sys
-import os
 import unittest
 from unittest.mock import patch
 
-# Add 'main' to sys.path so we can import modules as if we were in 'main'
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'main')))
 
-from engine.v2.chess_engine import GameState
-import engine.v2.chess_algorithm as chess_algorithm
+from chess_engine.engine.v2.chess_engine import GameState
+import chess_engine.engine.v2.chess_algorithm as chess_algorithm
 
 class TestChessEngine(unittest.TestCase):
     def setUp(self):

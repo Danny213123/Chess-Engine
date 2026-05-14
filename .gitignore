@@ -5,6 +5,8 @@ __pycache__/
 
 # C extensions
 *.so
+*.pyd
+*.dylib
 
 # Distribution / packaging
 build/
@@ -14,6 +16,7 @@ dist/
 .eggs/
 
 # Virtual environments
+.venv/
 venv/
 env/
 .env
@@ -30,12 +33,15 @@ env/
 .coverage
 htmlcov/
 .tox/
+.mypy_cache/
+.ruff_cache/
+.uv-cache/
 
 # Logs and temp files
 *.log
-*.txt
-!README.md
-!requirements.txt
+*.tmp
+*.local
+.chess-engine.json
 
 # Debug scripts (development only)
 debug_*.py
@@ -54,4 +60,12 @@ Thumbs.db
 
 # Node modules (frontend)
 node_modules/
-main/client/node_modules/
+client/node_modules/
+client/dist/
+client/dist-ssr/
+
+# Native engine build artifacts
+src/chess_engine/engine/v6/build/
+src/chess_engine/engine/v6/v6_engine*.so
+src/chess_engine/engine/v6/v6_engine*.pyd
+src/chess_engine/engine/v6/v6_engine*.dylib

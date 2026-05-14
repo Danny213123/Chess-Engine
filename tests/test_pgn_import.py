@@ -2,13 +2,10 @@
 Tests for PGN parsing and real game imports.
 """
 import pytest
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'main'))
 
-from engine.v2.chess_engine import GameState
-from engine.v2.pgn_parser import PGNParser, parse_pgn, play_pgn_game
+from chess_engine.engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.pgn_parser import PGNParser, parse_pgn, play_pgn_game
 
 
 # Real game: Magnus Carlsen vs Yaroslav Shevchenko, January 2026

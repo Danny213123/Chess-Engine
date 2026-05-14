@@ -3,7 +3,7 @@ Tests that play through famous chess games move-by-move to verify correctness.
 """
 import pytest
 from conftest import make_move_from_notation, move_exists
-from engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.chess_engine import GameState
 
 
 class TestFoolsMate:

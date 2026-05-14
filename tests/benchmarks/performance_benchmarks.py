@@ -1,19 +1,16 @@
 
-import sys
 import os
 import time
 import importlib
 import traceback
 import contextlib
 
-# Ensure we can import from main
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'main')))
 
-from engine.v1 import chess_algorithm as v1_algo
-from engine.v1.chess_engine import GameState as GameStateV1
-from engine.v2 import chess_algorithm as v2_algo
-from engine.v2.chess_engine import GameState as GameStateV2
-from engine.v1.pgn_parser import parse_pgn
+from chess_engine.engine.v1 import chess_algorithm as v1_algo
+from chess_engine.engine.v1.chess_engine import GameState as GameStateV1
+from chess_engine.engine.v2 import chess_algorithm as v2_algo
+from chess_engine.engine.v2.chess_engine import GameState as GameStateV2
+from chess_engine.engine.v1.pgn_parser import parse_pgn
 
 # Test Positions (name, fen/setup)
 POSITIONS = [

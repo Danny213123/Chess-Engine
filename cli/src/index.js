@@ -13,17 +13,16 @@
  *   chess-engine run-all      # Build everything and start
  */
 
-const { execSync, spawn } = require('child_process');
+const { execFileSync, execSync, spawn } = require('child_process');
 const readline = require('readline');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { loadConfig, saveConfig, setConfigValue, getConfigValue } = require('./config.js');
+const { loadConfig, saveConfig, setConfigValue } = require('./config.js');
 
 // Project root directory
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
-const V6_DIR = path.join(ROOT_DIR, 'main', 'engine', 'v6');
-const CLIENT_DIR = path.join(ROOT_DIR, 'main', 'client');
+const CLIENT_DIR = path.join(ROOT_DIR, 'client');
 
 // ANSI color codes
 const colors = {
@@ -55,10 +54,6 @@ function logError(message) {
 
 function logWarning(message) {
     log(`⚠ ${message}`, colors.yellow);
-}
-
-function logInfo(message) {
-    log(`ℹ ${message}`, colors.cyan);
 }
 
 function printHeader(title) {
@@ -147,96 +142,32 @@ function prompt(question) {
 }
 
 // ============================================================
-// CMAKE DETECTION
-// ============================================================
-
-function findCMake() {
-    // Check if already in path
-    try {
-        execSync('cmake --version', { stdio: 'pipe' });
-        return 'cmake';
-    } catch { }
-
-    // Check common Visual Studio locations
-    const vsLocations = [
-        'C:\\Program Files\\Microsoft Visual Studio',
-        'C:\\Program Files (x86)\\Microsoft Visual Studio',
-    ];
-
-    for (const vsBase of vsLocations) {
-        if (!fs.existsSync(vsBase)) continue;
-
-        try {
-            const years = fs.readdirSync(vsBase);
-            for (const year of years.reverse()) {  // Newest first
-                const editions = ['BuildTools', 'Enterprise', 'Professional', 'Community'];
-                for (const edition of editions) {
-                    const cmakePath = path.join(
-                        vsBase, year, edition,
-                        'Common7', 'IDE', 'CommonExtensions', 'Microsoft', 'CMake', 'CMake', 'bin', 'cmake.exe'
-                    );
-                    if (fs.existsSync(cmakePath)) {
-                        return cmakePath;
-                    }
-                }
-            }
-        } catch { }
-    }
-
-    return null;
-}
-
-// ============================================================
 // BUILD FUNCTIONS
 // ============================================================
 
 async function buildV6() {
     printSubHeader('Building V6 C++ Engine');
 
-    const cmakePath = findCMake();
-    if (!cmakePath) {
-        logError('CMake not found! Please install Visual Studio Build Tools or add CMake to PATH.');
-        return false;
-    }
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    let command = 'uv';
+    let args = ['run', '--extra', 'build', 'python', '-m', 'chess_engine.engine.v6.native_build'];
 
-    logInfo(`Using CMake: ${cmakePath}`);
-    setConfigValue('cmakePath', cmakePath);
-
-    const buildDir = path.join(V6_DIR, 'build');
-
-    // Create build directory
-    if (!fs.existsSync(buildDir)) {
-        fs.mkdirSync(buildDir, { recursive: true });
+    try {
+        execSync('uv --version', { stdio: 'pipe' });
+    } catch {
+        command = pythonCmd;
+        args = ['-m', 'uv', 'run', '--extra', 'build', 'python', '-m', 'chess_engine.engine.v6.native_build'];
     }
 
     try {
-        // Run CMake configure
-        log('\n  [1/3] Configuring CMake...', colors.cyan);
-        execSync(`"${cmakePath}" .. -DCMAKE_BUILD_TYPE=Release`, {
-            cwd: buildDir,
+        execFileSync(command, args, {
+            cwd: ROOT_DIR,
             stdio: 'inherit',
+            env: {
+                ...process.env,
+                PYTHONPATH: path.join(ROOT_DIR, 'src'),
+            },
         });
-        logSuccess('CMake configuration complete');
-
-        // Run build
-        log('\n  [2/3] Building...', colors.cyan);
-        execSync(`"${cmakePath}" --build . --config Release`, {
-            cwd: buildDir,
-            stdio: 'inherit',
-        });
-        logSuccess('Build complete');
-
-        // Copy Python module
-        log('\n  [3/3] Installing Python module...', colors.cyan);
-        const pydFiles = fs.readdirSync(path.join(buildDir, 'Release'))
-            .filter(f => f.endsWith('.pyd'));
-
-        if (pydFiles.length > 0) {
-            const srcFile = path.join(buildDir, 'Release', pydFiles[0]);
-            const dstFile = path.join(V6_DIR, 'v6_engine.pyd');
-            fs.copyFileSync(srcFile, dstFile);
-            logSuccess(`Installed ${pydFiles[0]}`);
-        }
 
         setConfigValue('v6Built', true);
         setConfigValue('lastBuildTime', new Date().toISOString());
@@ -398,8 +329,15 @@ async function viewStatistics() {
         // Try to get version info from the engine
         try {
             const result = execSync(
-                `python -c "import sys; sys.path.insert(0, r'${V6_DIR}'); import v6_engine; print(v6_engine.perft('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 1))"`,
-                { encoding: 'utf-8', stdio: 'pipe' }
+                `python -c "from chess_engine.engine.v6 import chess_algorithm as v6; print(v6.v6_engine.perft('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 1))"`,
+                {
+                    encoding: 'utf-8',
+                    stdio: 'pipe',
+                    env: {
+                        ...process.env,
+                        PYTHONPATH: path.join(ROOT_DIR, 'src'),
+                    },
+                }
             );
             log(`    Perft(1) test: ${colors.green}✓ ${result.trim()} nodes${colors.reset}`);
         } catch {

@@ -1,12 +1,8 @@
-import sys
-import os
 import unittest
 
-# Add 'main' to sys.path so we can import modules
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'main')))
 
-from engine.v2.chess_engine import GameState
-from engine.v2.bitboard_helpers import get_bit, count_bits
+from chess_engine.engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.bitboard_helpers import get_bit, count_bits
 
 class TestV2Bitboards(unittest.TestCase):
     def setUp(self):

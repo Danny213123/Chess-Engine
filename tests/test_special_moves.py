@@ -3,7 +3,7 @@ Tests for special chess moves: castling, en passant, and pawn promotion.
 """
 import pytest
 from conftest import move_exists, make_move_from_notation, find_move
-from engine.v2.chess_engine import GameState, Move
+from chess_engine.engine.v2.chess_engine import GameState, Move
 
 
 class TestCastling:

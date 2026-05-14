@@ -59,8 +59,8 @@ def see_capture(board, move):
 ```
 
 **Files to modify**:
-- [eval.py](main/engine/v5c/eval.py) - Add full SEE implementation
-- [search.py](main/engine/v5c/search.py) - Use SEE for capture ordering and pruning
+- [eval.py](src/chess_engine/engine/v5c/eval.py) - Add full SEE implementation
+- [search.py](src/chess_engine/engine/v5c/search.py) - Use SEE for capture ordering and pruning
 
 **Testing**: Create tactical test suite (WAC, ECM positions)
 
@@ -91,7 +91,7 @@ def quiescence(board, alpha, beta, info, ply, q_ply=0):
 ```
 
 **Files to modify**:
-- [search.py](main/engine/v5c/search.py) - Enhance quiescence search
+- [search.py](src/chess_engine/engine/v5c/search.py) - Enhance quiescence search
 
 ---
 
@@ -166,8 +166,8 @@ class TimeManager:
 ```
 
 **Files to modify**:
-- [search.py](main/engine/v5c/search.py) - Add TimeManager class
-- [chess_engine.py](main/engine/v5c/chess_engine.py) - Integrate time management
+- [search.py](src/chess_engine/engine/v5c/search.py) - Add TimeManager class
+- [chess_engine.py](src/chess_engine/engine/v5c/chess_engine.py) - Integrate time management
 
 ---
 
@@ -245,8 +245,8 @@ def evaluate_endgame(board):
 ```
 
 **Files to modify**:
-- [eval.py](main/engine/v5c/eval.py) - Add endgame-specific evaluation
-- [constants.py](main/engine/v5c/constants.py) - Add KING_CENTRALIZATION table
+- [eval.py](src/chess_engine/engine/v5c/eval.py) - Add endgame-specific evaluation
+- [constants.py](src/chess_engine/engine/v5c/constants.py) - Add KING_CENTRALIZATION table
 
 ---
 
@@ -313,7 +313,7 @@ class SyzygyProbe:
 ```
 
 **Files to create**:
-- [tablebase.py](main/engine/v5c/tablebase.py) - Syzygy integration
+- [tablebase.py](src/chess_engine/engine/v5c/tablebase.py) - Syzygy integration
 
 ---
 

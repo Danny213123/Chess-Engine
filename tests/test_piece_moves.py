@@ -4,7 +4,7 @@ These tests verify that each piece type moves according to chess rules.
 """
 import pytest
 from conftest import move_exists, count_moves_from_square, make_move_from_notation
-from engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.chess_engine import GameState
 
 
 class TestPawnMoves:

@@ -3,7 +3,7 @@ Tests ensuring illegal moves are not allowed.
 """
 import pytest
 from conftest import move_exists, make_move_from_notation
-from engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.chess_engine import GameState
 
 
 class TestPawnIllegalMoves:

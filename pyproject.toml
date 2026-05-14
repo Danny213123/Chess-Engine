@@ -3,28 +3,71 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "chess_engine"
+name = "chess-engine"
 version = "0.1.0"
-description = "A simple Python chess engine"
+description = "A Python chess engine with FastAPI, React, and optional C++ acceleration"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Danny Guan"}
 ]
 dependencies = [
-    "pygame",
     "fastapi",
-    "uvicorn",
-    "pydantic"
+    "numpy",
+    "numba",
+    "pydantic",
+    "uvicorn[standard]",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest"
+server = [
+    "fastapi",
+    "numpy",
+    "numba",
+    "pydantic",
+    "uvicorn[standard]",
+]
+visual = [
+    "pygame",
+]
+build = [
+    "pybind11",
+]
+all = [
+    "fastapi",
+    "httpx",
+    "numba",
+    "numpy",
+    "pydantic",
+    "pygame",
+    "pytest",
+    "requests",
+    "uvicorn[standard]",
 ]
 
+[dependency-groups]
+dev = [
+    "httpx",
+    "pytest",
+    "requests",
+]
+
+[tool.uv]
+package = true
+
 [tool.setuptools.packages.find]
-where = ["main"]
-include = ["engine*", "visual*"]
+where = ["src"]
+include = ["chess_engine*", "engine", "main"]
 namespaces = false
+
+[tool.setuptools.package-data]
+chess_engine = [
+    "Zobrist_keys.txt",
+    "images/*.png",
+]
+"chess_engine.engine.v6" = [
+    "CMakeLists.txt",
+    "include/*.hpp",
+    "src/*.cpp",
+]

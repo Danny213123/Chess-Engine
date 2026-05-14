@@ -1,8 +1,5 @@
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from main.server.game_manager import GameManager
+from chess_engine.server.game_manager import GameManager
 
 def test_simulation():
     gm = GameManager()

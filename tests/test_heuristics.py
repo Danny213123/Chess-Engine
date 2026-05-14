@@ -2,13 +2,10 @@
 Tests for board evaluation heuristics.
 """
 import pytest
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'main'))
 
-from engine.v2.chess_engine import GameState
-from engine.v2.chess_heuristic_calculation import score_board
+from chess_engine.engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.chess_heuristic_calculation import score_board
 
 
 class TestMaterialCounting:

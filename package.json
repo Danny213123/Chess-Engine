@@ -10,7 +10,7 @@
         "start": "node cli/bin/chess-engine.js",
         "cli": "node cli/bin/chess-engine.js",
         "build:v6": "node cli/bin/chess-engine.js build v6",
-        "build:client": "cd main/client && npm run build",
+        "build:client": "npm run build --prefix client",
         "server": "python run_ui.py",
         "dev": "node cli/bin/chess-engine.js run-all"
     },
@@ -24,11 +24,15 @@
     "author": "Danny213123",
     "license": "MIT",
     "engines": {
-        "node": ">=14.0.0"
+        "node": "^20.19.0 || >=22.12.0"
     },
     "files": [
         "cli/",
+        "client/",
+        "engine/",
         "main/",
+        "src/",
+        "pyproject.toml",
         "README.md"
     ]
 }

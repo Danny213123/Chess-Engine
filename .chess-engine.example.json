@@ -1,0 +1,9 @@
+{
+  "threads": null,
+  "ttSize": 64,
+  "maxMemory": 512,
+  "timeLimit": 5000,
+  "v6Built": false,
+  "lastBuildTime": null,
+  "cmakePath": null
+}

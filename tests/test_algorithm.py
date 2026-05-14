@@ -2,14 +2,11 @@
 Tests for the AI algorithm components.
 """
 import pytest
-import sys
-import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'main'))
 
-from engine.v2.chess_engine import GameState
-from engine.v2.chess_algorithm import find_best_move, order_moves
-import engine.v2.chess_hash as chess_hash
+from chess_engine.engine.v2.chess_engine import GameState
+from chess_engine.engine.v2.chess_algorithm import find_best_move, order_moves
+import chess_engine.engine.v2.chess_hash as chess_hash
 
 
 @pytest.fixture(autouse=True)
