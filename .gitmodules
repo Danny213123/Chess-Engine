@@ -1,0 +1,3 @@
+[submodule "src/chess_engine/engine/v7/extern/fathom"]
+	path = src/chess_engine/engine/v7/extern/fathom
+	url = https://github.com/jdart1/Fathom.git
