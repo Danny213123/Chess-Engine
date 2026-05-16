@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-05-16
+
+### Added
+- New V7 engine, selectable from the web UI and CLI alongside V1–V6.
+- Optional Syzygy endgame tablebase support for V7 (tablebase files not bundled).
+- Standalone UCI binary for V7.
+
+### Changed
+- Engine dropdown and CLI updated to list V7.
+
+### Notes
+- V1–V6 are unchanged and continue to work as before.
+
 ## [4.0.1] - 2026-02-05
 
 ### Added
