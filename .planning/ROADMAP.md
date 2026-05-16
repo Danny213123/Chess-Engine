@@ -39,7 +39,7 @@
 - [x] 01-03-PLAN.md — Wave 3 (B1): Sequential PVS search + 4 hardening patches (SRCH-01/02/13/14/15, FOUND-04)
 - [x] 01-04-PLAN.md — Wave 4 (B2): coeffs.json + gen_coeffs.py + eval.cpp scaffolding all 11 EVAL terms (EVAL-01..11)
 - [x] 01-05-PLAN.md — Wave 5 (B3): Fathom submodule + tbconfig.h override + syzygy.cpp + D-08 init logs (TB-01..08, TB-10, INT-06)
-- [ ] 01-06-PLAN.md — Wave 6 (C1): GameManager + React UI + Node CLI + smoke tests + v7_uci (INT-01..05, INT-07/08/09, TB-09, FOUND-07)
+- [x] 01-06-PLAN.md — Wave 6 (C1): GameManager + React UI + Node CLI + smoke tests + v7_uci (INT-01..05, INT-07/08/09, TB-09, FOUND-07)
 **UI hint**: yes
 
 ### Phase 2: Gauntlet Harness Early

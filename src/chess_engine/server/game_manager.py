@@ -22,6 +22,7 @@ AVAILABLE_ENGINES = {
     "v5c",
     "v5d",
     "v6",
+    "v7",
 }
 
 
@@ -49,7 +50,15 @@ class GameManager:
                 algo_v6.ensure_available(auto_build=True)
             except algo_v6.V6UnavailableError as error:
                 return False, f"V6 is unavailable: {error}"
-            
+        elif ver == "v7":
+            # Lazy import keeps server startup cheap when V7 isn't selected;
+            # mirrors V6 ensure_available shape (INT-01 Point 2).
+            try:
+                from chess_engine.engine.v7 import chess_algorithm as algo_v7
+                algo_v7.ensure_available(auto_build=True)
+            except Exception as error:
+                return False, f"V7 is unavailable: {error}"
+
         if color is None:
             self.white_engine = ver
             self.black_engine = ver
@@ -70,6 +79,18 @@ class GameManager:
         if self.current_search_info:
             self.current_search_info.stopped = True
             print("[GameManager] Search stop requested")
+        # INT-01 Point 4: also flip V7's C++ atomic stop flag if V7 is the
+        # currently-active engine on either side. The try/except is critical
+        # — stop_search MUST NEVER throw (called from request-handler paths
+        # where an exception aborts the HTTP response). Closes FOUND-04
+        # end-to-end through the GameManager pathway.
+        if self.white_engine == "v7" or self.black_engine == "v7":
+            try:
+                from chess_engine.engine.v7 import chess_algorithm as algo_v7
+                if getattr(algo_v7, "V7_AVAILABLE", False):
+                    algo_v7.stop_engine()
+            except Exception:
+                pass  # never let cancellation throw
         return True
 
     def reset(self):
@@ -361,6 +382,23 @@ class GameManager:
              except Exception as error:
                  self.last_search_stats = None
                  print(f"[GameManager] V6 move failed: {error}")
+                 return None
+        elif current_engine == "v7":
+             # V7 C++ engine — passes self.current_search_info as 4th positional
+             # arg per FOUND-03 adapter contract. The V7 adapter routes
+             # cancellation through stop_engine() (atomic flag) rather than
+             # SearchInfo polling — see plan 01 known_correction. (INT-01 Point 3)
+             try:
+                 from chess_engine.engine.v7 import chess_algorithm as algo_v7
+                 result = algo_v7.find_best_move(
+                     self.gs, self.valid_moves, current_engine, self.current_search_info)
+                 if isinstance(result, tuple):
+                     move, stats = result
+                 else:
+                     move = result
+             except Exception as error:
+                 self.last_search_stats = None
+                 print(f"[GameManager] V7 move failed: {error}")
                  return None
         elif current_engine == "v2":
             move = algo_v2.find_best_move(self.gs, self.valid_moves, "v2")

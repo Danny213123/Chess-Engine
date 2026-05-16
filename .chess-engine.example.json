@@ -4,6 +4,9 @@
   "maxMemory": 512,
   "timeLimit": 5000,
   "v6Built": false,
+  "v7Built": false,
+  "syzygyPath": null,
+  "syzygyMaxPieces": 6,
   "lastBuildTime": null,
   "cmakePath": null
 }
