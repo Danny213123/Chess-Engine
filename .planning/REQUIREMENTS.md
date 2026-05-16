@@ -15,7 +15,7 @@ Requirements for the V7 milestone. Each maps to roadmap phases.
 - [ ] **FOUND-04**: V7 honors the Python-side `SearchInfo` cancellation token (closing the V6 gap where it is currently ignored)
 - [ ] **FOUND-05**: pybind11 binding wraps the search in `py::call_guard<py::gil_scoped_release>()` from day one
 - [ ] **FOUND-06**: V7 ported board / movegen / magic / zobrist achieve perft parity vs V6 to depth 6 on the standard test suite (Kiwipete, position 3, position 4, etc.)
-- [ ] **FOUND-07**: A `v7_uci` standalone CMake executable target is built alongside the pybind11 module (for fastchess integration)
+- [x] **FOUND-07**: A `v7_uci` standalone CMake executable target is built alongside the pybind11 module (for fastchess integration)
 
 ### Search
 
@@ -67,7 +67,7 @@ Requirements for the V7 milestone. Each maps to roadmap phases.
 - [ ] **TB-06**: Probe failures are detected and never silently treated as draws
 - [ ] **TB-07**: Tablebase path is configurable via a `syzygyPath` key in `.chess-engine.json`; platform-aware separator (`;` on Windows, `:` on POSIX)
 - [ ] **TB-08**: Optional `chess-engine syzygy download` CLI subcommand fetches 3-4-5 men by default (~1 GB) with `--6men` opt-in (~150 GB); tablebases are NOT bundled in the repo
-- [ ] **TB-09**: Default storage path is `%LOCALAPPDATA%\chess-engine\syzygy\` on Windows, `~/.local/share/chess-engine/syzygy/` elsewhere
+- [x] **TB-09**: Default storage path is `%LOCALAPPDATA%\chess-engine\syzygy\` on Windows, `~/.local/share/chess-engine/syzygy/` elsewhere
 - [ ] **TB-10**: Init-time smoke test verifies file count + a KRk probe before V7 reports tablebases as active
 
 ### Parallelism
@@ -109,15 +109,15 @@ Requirements for the V7 milestone. Each maps to roadmap phases.
 
 ### Integration
 
-- [ ] **INT-01**: `GameManager.ai_move` dispatches V7 (4-line edit: import + `AVAILABLE_ENGINES` entry + `set_engine_version` branch + `ai_move` dispatch with correctly wired `SearchInfo`)
-- [ ] **INT-02**: V7 appears as an `<option value="v7">` entry in both engine selectors in `client/src/App.jsx` (white + black)
-- [ ] **INT-03**: The "build may take a while" warning in `App.jsx` is updated to mention V7 as well as V6
-- [ ] **INT-04**: `cli/src/config.js` gains `v7Built`, `syzygyPath`, `syzygyMaxPieces` keys (with sensible defaults)
-- [ ] **INT-05**: `cli/src/index.js` gains `chess-engine build v7` and `chess-engine syzygy download` subcommands
+- [x] **INT-01**: `GameManager.ai_move` dispatches V7 (4-line edit: import + `AVAILABLE_ENGINES` entry + `set_engine_version` branch + `ai_move` dispatch with correctly wired `SearchInfo`)
+- [x] **INT-02**: V7 appears as an `<option value="v7">` entry in both engine selectors in `client/src/App.jsx` (white + black)
+- [x] **INT-03**: The "build may take a while" warning in `App.jsx` is updated to mention V7 as well as V6
+- [x] **INT-04**: `cli/src/config.js` gains `v7Built`, `syzygyPath`, `syzygyMaxPieces` keys (with sensible defaults)
+- [x] **INT-05**: `cli/src/index.js` gains `chess-engine build v7` and `chess-engine syzygy download` subcommands
 - [ ] **INT-06**: `.gitignore` excludes V7 build artifacts; `.gitmodules` declares the Fathom submodule
-- [ ] **INT-07**: `tests/test_v7_engine.py` covers: legal-game smoke test, perft parity, cancellation latency, NPS regression sentinel
-- [ ] **INT-08**: V1–V6 engines continue to work unchanged after V7 is added (regression-tested via the existing pytest suite)
-- [ ] **INT-09**: V7 plays a full game end-to-end through the existing React UI against V6 (C1 smoke milestone)
+- [x] **INT-07**: `tests/test_v7_engine.py` covers: legal-game smoke test, perft parity, cancellation latency, NPS regression sentinel
+- [x] **INT-08**: V1–V6 engines continue to work unchanged after V7 is added (regression-tested via the existing pytest suite)
+- [x] **INT-09**: V7 plays a full game end-to-end through the existing React UI against V6 (C1 smoke milestone)
 
 ## v2 Requirements
 
@@ -179,7 +179,7 @@ Every v1 requirement maps to exactly one phase. Populated by the roadmapper on 2
 | FOUND-04 | Phase 1 | Pending |
 | FOUND-05 | Phase 1 | Pending |
 | FOUND-06 | Phase 1 | Pending |
-| FOUND-07 | Phase 1 | Pending |
+| FOUND-07 | Phase 1 | Complete |
 | SRCH-01 | Phase 1 | Pending |
 | SRCH-02 | Phase 1 | Pending |
 | SRCH-03 | Phase 3 | Pending |
@@ -219,7 +219,7 @@ Every v1 requirement maps to exactly one phase. Populated by the roadmapper on 2
 | TB-06 | Phase 1 | Pending |
 | TB-07 | Phase 1 | Pending |
 | TB-08 | Phase 1 | Pending |
-| TB-09 | Phase 1 | Pending |
+| TB-09 | Phase 1 | Complete |
 | TB-10 | Phase 1 | Pending |
 | PAR-01 | Phase 3 | Pending |
 | PAR-02 | Phase 3 | Pending |
@@ -249,15 +249,15 @@ Every v1 requirement maps to exactly one phase. Populated by the roadmapper on 2
 | GAUNT-07 | Phase 2 | Pending |
 | GAUNT-08 | Phase 2 | Pending |
 | GAUNT-09 | Phase 5 | Pending |
-| INT-01 | Phase 1 | Pending |
-| INT-02 | Phase 1 | Pending |
-| INT-03 | Phase 1 | Pending |
-| INT-04 | Phase 1 | Pending |
-| INT-05 | Phase 1 | Pending |
+| INT-01 | Phase 1 | Complete |
+| INT-02 | Phase 1 | Complete |
+| INT-03 | Phase 1 | Complete |
+| INT-04 | Phase 1 | Complete |
+| INT-05 | Phase 1 | Complete |
 | INT-06 | Phase 1 | Pending |
-| INT-07 | Phase 1 | Pending |
-| INT-08 | Phase 1 | Pending |
-| INT-09 | Phase 1 | Pending |
+| INT-07 | Phase 1 | Complete |
+| INT-08 | Phase 1 | Complete |
+| INT-09 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: **85** total (across 9 categories: FOUND ×7, SRCH ×15, EVAL ×11, ENDG ×5, TB ×10, PAR ×9, TUNE ×10, GAUNT ×9, INT ×9)
