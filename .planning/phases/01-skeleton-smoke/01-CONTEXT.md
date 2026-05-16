@@ -17,12 +17,12 @@ Phase 1 ends with the C1 smoke milestone passing: a single fixed-depth game with
 
 ### Initial Eval Coefficients
 - **D-01:** V7's eval coefficients in `coeffs.json` initialize from **public Pesto/Stockfish-baseline values**, not lifted from V6. Pesto provides PSTs and tapered-eval material; for terms beyond PSTs (king-safety attack table, mobility tables, pawn-structure terms, threats, bishop pair, tempo) use documented public starting values where they exist (Pesto-derived where available) or modest hand-set values clearly marked `# initial; will be tuned Phase 4` in `coeffs.json`.
-- **D-02:** This makes V7 the "neutral seed" candidate in Phase 4's TUNE-08 multi-seed tuning. The V6-equivalent seed (also referenced in TUNE-08) is left for Phase 4 to construct separately if desired — it is NOT V7's Phase 1 starting state.
-- **D-03:** Smoke games in Phase 1 may look weaker than V6 because Pesto-baseline ≠ tuned. That is expected and acceptable — the Phase 1 milestone is *legal play*, not *strong play*. Strength is measured starting Phase 2 (gauntlet harness) and validated in Phase 5.
+- **D-02 [informational]:** This makes V7 the "neutral seed" candidate in Phase 4's TUNE-08 multi-seed tuning. The V6-equivalent seed (also referenced in TUNE-08) is left for Phase 4 to construct separately if desired — it is NOT V7's Phase 1 starting state.
+- **D-03 [informational]:** Smoke games in Phase 1 may look weaker than V6 because Pesto-baseline ≠ tuned. That is expected and acceptable — the Phase 1 milestone is *legal play*, not *strong play*. Strength is measured starting Phase 2 (gauntlet harness) and validated in Phase 5.
 
 ### Smoke Milestone Scope
 - **D-04:** Phase 1's C1 smoke milestone is **a single game, V7 as white, fixed depth, vs V6**. Must finish legally with no crashes, illegal moves, or unhandled exceptions; cancellation must work mid-search (FOUND-04). Suggested depth: same as V6's default (depth 6).
-- **D-05:** V7-as-black, time-management exercise (SRCH-15 in real games), and back-to-back game stability are **not** Phase 1 acceptance criteria — Phase 2's gauntlet harness is the first place these are validated.
+- **D-05 [informational]:** V7-as-black, time-management exercise (SRCH-15 in real games), and back-to-back game stability are **not** Phase 1 acceptance criteria — Phase 2's gauntlet harness is the first place these are validated.
 - **D-06:** SRCH-15 (time management) still needs **unit tests** in Phase 1 (must not bust at the configured TC, must keep ≥10% safety margin). The unit tests live; the end-to-end exercise is Phase 2.
 
 ### Syzygy Missing-Path Behavior (init-time only)

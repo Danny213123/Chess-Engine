@@ -916,27 +916,29 @@ const DEFAULT_CONFIG = {
 | A9 | The V6 `find_best_move` adapter pattern (with `search_info=None` default, ignored in body) lets V7 override `search_info` semantics without breaking GameManager call site | C1 | LOW — `find_best_move(..., search_info)` signature is the established contract per FOUND-03 |
 | A10 | Pesto material values (P=82/94 etc.) are the canonical Pesto-2019 values | B2 | LOW — verify by cross-referencing 2-3 implementations before locking `coeffs.json` |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+> All four open questions below were resolved during phase planning. Resolutions are tied to specific CONTEXT.md decisions (D-08, D-12, D-13) and/or specific plan task steps. This section is retained for traceability; no question here is still open.
 
 1. **Where exactly does V6's TT/search stand on mate-TT and repetition correctness?**
    - What we know: V6's search.cpp implements PVS, ID, aspiration, and per-node stop polling. Pitfalls #1 and #7 are flagged generically.
    - What's unclear: Does V6's actual code already do `score_to_tt`/`score_from_tt`? Does V6 maintain a repetition stack in tree?
-   - Recommendation: First task in B1 is to grep V6 source for `MATE_IN`, `MATE_VALUE`, `repetition`, and `is_threefold` — document findings in the plan. If V6 is correct, V7 inherits and SRCH-13/14 are no-ops; if V6 is wrong, V7 fixes it (and the planner should escalate the V6 bug as a separate deferred item per CONTEXT deferred-ideas list).
+   - **RESOLVED:** This is an execution-time audit, not an open planning question. 01-03-PLAN.md Task 1 Step 1 grep-audits V6 source for `MATE_IN`, `MATE_VALUE`, `repetition`, `is_threefold` and records the verdict (V6 already-correct → V7 inherits via fork; V6 wrong → V7 patches per the SRCH-13/14 plan in 01-03-PLAN.md). Audit findings are recorded in 01-03-SUMMARY.md so subsequent plans can rely on the result.
 
 2. **Default Syzygy path on Windows vs POSIX (CONTEXT open todo):**
    - What we know: CONTEXT's "Open Todos" lists `~/.local/share/chess-engine/syzygy/` vs `%LOCALAPPDATA%\chess-engine\syzygy\` as still-to-decide.
    - What's unclear: Single-default vs OS-specific defaults vs no-default-at-all.
-   - Recommendation: Use OS-specific defaults: `%LOCALAPPDATA%\chess-engine\syzygy\` on Windows, `$XDG_DATA_HOME/chess-engine/syzygy/` (default `~/.local/share/...`) on Linux, `~/Library/Application Support/chess-engine/syzygy/` on macOS. The CLI `syzygy download` command writes to `config.syzygyPath` if set, else this OS-specific default.
+   - **RESOLVED per D-12 (storage convention) and 01-06-PLAN.md Task 1 Step 6 (CLI implementation):** OS-specific defaults — `%LOCALAPPDATA%\chess-engine\syzygy\` on Windows, `${XDG_DATA_HOME:-~/.local/share}/chess-engine/syzygy/` on Linux, `~/Library/Application Support/chess-engine/syzygy/` on macOS. The CLI `syzygy download` command writes to `config.syzygyPath` if set, else this OS-specific default. Exact `defaultSyzygyPath()` implementation lives in 01-06-PLAN.md Task 1 Step 6.
 
 3. **Should the V7 Engine instance be module-singleton or per-search?**
    - What we know: V6 holds engine state at module load (TT, magic tables); module-singleton matches.
    - What's unclear: Does any test require a fresh TT per game? (Phase 5 SPRT does, but that's Phase 4+ concern.)
-   - Recommendation: Phase 1 uses module-singleton with an explicit `_engine.new_game()` call from `GameManager.new_game()` to clear TT/repetition stack. Adds INT-01 footprint by 1 line; matches future-Phase needs.
+   - **RESOLVED:** Module-singleton with explicit per-game reset. 01-01-PLAN.md Task 1 (`chess_algorithm.py`) adopts a module-level `_engine = v7_engine.Engine()` mirroring V6's module-load pattern. `GameManager.new_game()` invokes `algo_v7.new_game()` which calls `_engine.new_game()` to clear TT + repetition stack between games. Implementation detail captured in 01-01-PLAN.md acceptance criteria.
 
 4. **`v7_uci` binary scope for Phase 1:**
    - What we know: FOUND-07 + Phase 2 prereq. Phase 2 fastchess gauntlet requires UCI binary.
    - What's unclear: Does Phase 1 need a FULL UCI implementation, or minimal stub that supports `uci`/`isready`/`position`/`go depth N`/`stop`/`quit`?
-   - Recommendation: Minimal stub sufficient for fastchess. Don't implement `setoption name X value Y` for arbitrary options yet — Phase 4 needs `Threads`, `Hash`, `SyzygyPath`, but Phase 1 can hardcode defaults. Document this scope explicitly in the FOUND-07 plan.
+   - **RESOLVED per D-08 (verbatim log scope) and D-13 (explicit determinism scope) and 01-06-PLAN.md Task 1 Step 7 (full minimal UCI loop):** Phase 1 ships a full minimal UCI loop: `uci`, `isready`, `ucinewgame`, `position startpos`, `position fen`, `go depth N`, `go movetime MS`, `stop`, `quit`. `setoption name X value Y` is deferred to Phase 4 (Threads, Hash, SyzygyPath surface — referenced by both D-08 and D-13 as the next setoption surface). Phase 1 fastchess gauntlet uses depth-fixed games, so setoption is not required for the smoke milestone.
 
 ## Sources
 
