@@ -42,6 +42,15 @@ created: 2026-05-15
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | TBD     | TBD  | TBD  | TBD         | —          | —               | TBD       | TBD               | ❌ W0       | ⬜ pending |
 | 02-T2   | 02   | 2    | FOUND-06    | T-02-01    | V7 perft matches V6 perft on canonical 5-position corpus | unit/parity | `python3 -m uv run --group dev pytest tests/test_v7_perft.py -q -m "not slow"` | ✅          | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-01     | T-03-04    | Iterative deepening commits best_move at each completed depth | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_iterative_deepening -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-02     | T-03-02    | Aspiration re-search cap (=4 widenings) prevents wall-clock blowout | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_aspiration_cap -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-13     | T-03-01    | Mate scores survive TT round-trip with correct ply adjustment | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_mate_score_tt -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-14     | T-03-06    | In-tree 3-fold repetition returns DRAW_SCORE via Engine-owned RepStack | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_repetition_in_tree -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-14     | T-03-06    | TT cutoff refused when halfmove_clock >= 80 (50-move guard) | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_50move_tt_cutoff -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-15     | T-03-03    | TimeManager honors per-move budget end-to-end via wall clock | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_time_management_budget -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-15     | T-03-03    | >=10% safety margin clamp enforced at TimeManager.allocate | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_time_management_safety_margin -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | SRCH-15     | T-03-04    | Tight time budget never returns MOVE_NONE (depth 1 always completes) | unit | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_time_management_returns_best_so_far -x` | ✅ | ⬜ pending |
+| 03-T2   | 03   | 3    | FOUND-04    | —          | Engine.stop() interrupts active search within 50 ms via SearchInfo.external_stop | unit/latency | `python3 -m uv run --group dev pytest tests/test_v7_search.py::test_cancellation_latency_during_real_search -x` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
