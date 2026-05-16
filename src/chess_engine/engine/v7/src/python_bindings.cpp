@@ -27,6 +27,7 @@
 #include <string>
 
 #include "engine.hpp"
+#include "eval.hpp"
 
 namespace py = pybind11;
 
@@ -115,4 +116,13 @@ PYBIND11_MODULE(v7_engine, m) {
     m.def("perft", &v7::perft_entry,
           py::arg("fen"), py::arg("depth"),
           py::call_guard<py::gil_scoped_release>());     // FOUND-06 parity
+
+    // Plan 04: expose evaluate() so Python tests (test_v7_eval.py) and
+    // the future Phase 4 Texel tuner harness can score positions
+    // directly without going through Engine::search. Releases the GIL
+    // (FOUND-05) — eval iterates magic-bitboard attack tables and is
+    // pure C++ work with no Python interaction.
+    m.def("evaluate", &v7::evaluate_entry,
+          py::arg("fen"),
+          py::call_guard<py::gil_scoped_release>());
 }
