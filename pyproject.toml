@@ -53,6 +53,11 @@ dev = [
     "requests",
 ]
 
+[tool.pytest.ini_options]
+markers = [
+    "benchmark: long-running benchmark; gated on RUN_BENCHMARKS=1 (skipped by default)",
+]
+
 [tool.uv]
 package = true
 
