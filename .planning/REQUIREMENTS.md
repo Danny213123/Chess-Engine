@@ -169,17 +169,108 @@ Explicitly excluded from this milestone. Documented to prevent scope creep.
 
 ## Traceability
 
-Populated by the roadmapper during ROADMAP.md creation.
+Every v1 requirement maps to exactly one phase. Populated by the roadmapper on 2026-05-15.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (filled by roadmapper) | | |
+| FOUND-01 | Phase 1 | Pending |
+| FOUND-02 | Phase 1 | Pending |
+| FOUND-03 | Phase 1 | Pending |
+| FOUND-04 | Phase 1 | Pending |
+| FOUND-05 | Phase 1 | Pending |
+| FOUND-06 | Phase 1 | Pending |
+| FOUND-07 | Phase 1 | Pending |
+| SRCH-01 | Phase 1 | Pending |
+| SRCH-02 | Phase 1 | Pending |
+| SRCH-03 | Phase 3 | Pending |
+| SRCH-04 | Phase 3 | Pending |
+| SRCH-05 | Phase 3 | Pending |
+| SRCH-06 | Phase 3 | Pending |
+| SRCH-07 | Phase 3 | Pending |
+| SRCH-08 | Phase 3 | Pending |
+| SRCH-09 | Phase 3 | Pending |
+| SRCH-10 | Phase 3 | Pending |
+| SRCH-11 | Phase 3 | Pending |
+| SRCH-12 | Phase 3 | Pending |
+| SRCH-13 | Phase 1 | Pending |
+| SRCH-14 | Phase 1 | Pending |
+| SRCH-15 | Phase 1 | Pending |
+| EVAL-01 | Phase 1 | Pending |
+| EVAL-02 | Phase 1 | Pending |
+| EVAL-03 | Phase 1 | Pending |
+| EVAL-04 | Phase 1 | Pending |
+| EVAL-05 | Phase 1 | Pending |
+| EVAL-06 | Phase 1 | Pending |
+| EVAL-07 | Phase 1 | Pending |
+| EVAL-08 | Phase 1 | Pending |
+| EVAL-09 | Phase 1 | Pending |
+| EVAL-10 | Phase 1 | Pending |
+| EVAL-11 | Phase 1 | Pending |
+| ENDG-01 | Phase 3 | Pending |
+| ENDG-02 | Phase 3 | Pending |
+| ENDG-03 | Phase 3 | Pending |
+| ENDG-04 | Phase 3 | Pending |
+| ENDG-05 | Phase 3 | Pending |
+| TB-01 | Phase 1 | Pending |
+| TB-02 | Phase 1 | Pending |
+| TB-03 | Phase 1 | Pending |
+| TB-04 | Phase 1 | Pending |
+| TB-05 | Phase 1 | Pending |
+| TB-06 | Phase 1 | Pending |
+| TB-07 | Phase 1 | Pending |
+| TB-08 | Phase 1 | Pending |
+| TB-09 | Phase 1 | Pending |
+| TB-10 | Phase 1 | Pending |
+| PAR-01 | Phase 3 | Pending |
+| PAR-02 | Phase 3 | Pending |
+| PAR-03 | Phase 3 | Pending |
+| PAR-04 | Phase 4 | Pending |
+| PAR-05 | Phase 4 | Pending |
+| PAR-06 | Phase 4 | Pending |
+| PAR-07 | Phase 4 | Pending |
+| PAR-08 | Phase 4 | Pending |
+| PAR-09 | Phase 4 | Pending |
+| TUNE-01 | Phase 4 | Pending |
+| TUNE-02 | Phase 4 | Pending |
+| TUNE-03 | Phase 4 | Pending |
+| TUNE-04 | Phase 4 | Pending |
+| TUNE-05 | Phase 4 | Pending |
+| TUNE-06 | Phase 4 | Pending |
+| TUNE-07 | Phase 4 | Pending |
+| TUNE-08 | Phase 4 | Pending |
+| TUNE-09 | Phase 4 | Pending |
+| TUNE-10 | Phase 4 | Pending |
+| GAUNT-01 | Phase 2 | Pending |
+| GAUNT-02 | Phase 2 | Pending |
+| GAUNT-03 | Phase 2 | Pending |
+| GAUNT-04 | Phase 2 | Pending |
+| GAUNT-05 | Phase 2 | Pending |
+| GAUNT-06 | Phase 2 | Pending |
+| GAUNT-07 | Phase 2 | Pending |
+| GAUNT-08 | Phase 2 | Pending |
+| GAUNT-09 | Phase 5 | Pending |
+| INT-01 | Phase 1 | Pending |
+| INT-02 | Phase 1 | Pending |
+| INT-03 | Phase 1 | Pending |
+| INT-04 | Phase 1 | Pending |
+| INT-05 | Phase 1 | Pending |
+| INT-06 | Phase 1 | Pending |
+| INT-07 | Phase 1 | Pending |
+| INT-08 | Phase 1 | Pending |
+| INT-09 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 70 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 70 ⚠️ (resolved by roadmapper)
+- v1 requirements: **85** total (across 9 categories: FOUND ×7, SRCH ×15, EVAL ×11, ENDG ×5, TB ×10, PAR ×9, TUNE ×10, GAUNT ×9, INT ×9)
+- Mapped to phases: **85** ✓
+- Unmapped: **0**
+
+**Per-phase distribution:**
+- Phase 1 (Skeleton + Smoke): 42 — FOUND ×7, SRCH ×5 (01,02,13,14,15), EVAL ×11, TB ×10, INT ×9
+- Phase 2 (Gauntlet Harness Early): 8 — GAUNT-01..08
+- Phase 3 (Lockless TT + Search Refinements + Endgame): 18 — PAR ×3 (01,02,03), SRCH ×10 (03..12), ENDG ×5
+- Phase 4 (Lazy SMP + Texel Tuning): 16 — PAR ×6 (04..09), TUNE ×10
+- Phase 5 (Final Gauntlet + Ship): 1 — GAUNT-09
 
 ---
 *Requirements defined: 2026-05-15*
-*Last updated: 2026-05-15 after initial definition*
+*Last updated: 2026-05-15 after roadmap creation (traceability table populated)*
