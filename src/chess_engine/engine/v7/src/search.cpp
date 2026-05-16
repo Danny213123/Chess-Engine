@@ -95,6 +95,10 @@ int quiescence(Board& board, int alpha, int beta, SearchInfo& info, int ply) {
 
     for (int i = 0; i < moves.count; ++i) {
         Move m = moves[i];
+        Piece captured = board.piece_at(move_to(m));
+        if (captured == KING) {
+            continue;
+        }
 
         // SEE pruning
         if (see(board, m) < 0) {
@@ -102,7 +106,6 @@ int quiescence(Board& board, int alpha, int beta, SearchInfo& info, int ply) {
         }
 
         // Make move
-        Piece captured = board.piece_at(move_to(m));
         int prev_castling = board.castling_rights;
         Square prev_ep = board.ep_square;
         int prev_halfmove = board.halfmove_clock;
@@ -289,6 +292,9 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         std::swap(ordered[i], ordered[best_idx]);
 
         Move m = ordered[i].move;
+        if (board.piece_at(move_to(m)) == KING) {
+            continue;
+        }
 
         // Late move pruning
         if (!in_check && !is_root && depth <= LMP_DEPTH && i >= 4 + depth * depth) {
@@ -386,7 +392,9 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
     int alpha = -INFINITY_SCORE;
     int beta = INFINITY_SCORE;
 
-    for (int depth = 1; depth <= 64 && !info.stopped; ++depth) {
+    int max_depth = (info.depth > 0) ? std::min(info.depth, 64) : 64;
+
+    for (int depth = 1; depth <= max_depth && !info.stopped; ++depth) {
         info.depth = depth;
         pv.clear();
 

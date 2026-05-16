@@ -13,51 +13,19 @@
 //
 // Plan 02 update: removed the plan-01 `perft_entry` `return 0;` stub from
 // this TU. The real body lives in src/perft.cpp (free function
-// v7::perft_entry) and is bound below via `&v7::perft_entry`. The Engine
-// stub bodies (set_syzygy_path / new_game / search) remain here through
-// Plan 02 — Plan 03 moves Engine::search and Engine::new_game into
-// src/engine.cpp, and Plan 05 moves Engine::set_syzygy_path into
-// src/syzygy.cpp.
+// v7::perft_entry) and is bound below via `&v7::perft_entry`. Engine method
+// implementations live in src/engine.cpp and src/syzygy.cpp.
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 #include <cstdint>
-#include <iostream>
 #include <string>
 
 #include "engine.hpp"
 #include "eval.hpp"
 
 namespace py = pybind11;
-
-// --- Engine stub implementations (Plans 02-pending; final in Plans 03/05) --
-//
-// These live in this TU until the owning plan moves them: Plan 03 takes
-// Engine::new_game + Engine::search into src/engine.cpp; Plan 05 takes
-// Engine::set_syzygy_path into src/syzygy.cpp.
-
-namespace v7 {
-
-void Engine::set_syzygy_path(const std::string& path) {
-    // D-08 verbatim log strings (plan 05 will add the "no tablebase files
-    // at <path>" and "smoke probe failed" variants once Fathom is wired).
-    if (path.empty()) {
-        std::cerr << "[v7] syzygy: no path configured; tbhits will be 0\n";
-        return;
-    }
-    std::cerr << "[v7] syzygy: path not found: " << path
-              << "; tbhits will be 0\n";
-}
-
-// Plan 03 — Engine::new_game and Engine::search now live in src/engine.cpp
-// (real iterative-deepening body wiring SearchInfo.external_stop and
-// SearchInfo.rep_stack). Engine::set_syzygy_path inline body remains above
-// through Plan 03 and is moved to src/syzygy.cpp by Plan 05.
-//
-// perft_entry lives in src/perft.cpp (Plan 02) — no stub here.
-
-} // namespace v7
 
 // --- pybind11 module -------------------------------------------------------
 
@@ -105,4 +73,8 @@ PYBIND11_MODULE(v7_engine, m) {
     m.def("evaluate", &v7::evaluate_entry,
           py::arg("fen"),
           py::call_guard<py::gil_scoped_release>());
+
+    m.def("backend_status", []() {
+        return std::string("cpu");
+    });
 }

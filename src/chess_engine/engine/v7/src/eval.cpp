@@ -427,7 +427,33 @@ int evaluate(const Board& board) {
     return (board.side_to_move == WHITE) ? final_score : -final_score;
 }
 
+int see(const Board& board, Move m) {
+    Square from = move_from(m);
+    Square to = move_to(m);
+
+    Piece attacker = board.piece_at(from);
+    Piece victim = board.piece_at(to);
+
+    if (victim == NO_PIECE) {
+        if (move_type(m) == EN_PASSANT) {
+            return material_mg(PAWN);
+        }
+        return 0;
+    }
+
+    int victim_value = material_mg(victim);
+    int attacker_value = material_mg(attacker);
+
+    if (attacker_value <= victim_value) {
+        return victim_value;
+    }
+
+    return victim_value - attacker_value / 2;
+}
+
 int evaluate_entry(const std::string& fen) {
+    init_magics();
+
     Board b;
     b.from_fen(fen);
     return evaluate(b);

@@ -141,6 +141,7 @@ endif()
 set(FATHOM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/fathom)
 if(EXISTS ${FATHOM_DIR}/src/tbprobe.c)
     enable_language(C)  # Fathom's tbprobe.c is C99
+    target_compile_definitions(v7_engine PRIVATE V7_HAS_FATHOM=1)
 
     target_include_directories(v7_engine PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include   # OUR tbconfig.h (Plan 05 creates) — FIRST
@@ -152,6 +153,7 @@ if(EXISTS ${FATHOM_DIR}/src/tbprobe.c)
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${FATHOM_DIR}/src
     )
+    target_compile_definitions(v7_uci PRIVATE V7_HAS_FATHOM=1)
     target_sources(v7_uci PRIVATE ${FATHOM_DIR}/src/tbprobe.c)
 
     set_source_files_properties(${FATHOM_DIR}/src/tbprobe.c PROPERTIES LANGUAGE C)

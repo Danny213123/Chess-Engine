@@ -23,6 +23,7 @@ const { loadConfig, saveConfig, setConfigValue } = require('./config.js');
 // Project root directory
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
 const CLIENT_DIR = path.join(ROOT_DIR, 'client');
+const UV_CACHE_DIR = path.join(ROOT_DIR, '.uv-cache');
 
 // ANSI color codes
 const colors = {
@@ -166,6 +167,7 @@ async function buildV6() {
             env: {
                 ...process.env,
                 PYTHONPATH: path.join(ROOT_DIR, 'src'),
+                UV_CACHE_DIR,
             },
         });
 
@@ -206,6 +208,7 @@ async function buildV7() {
             env: {
                 ...process.env,
                 PYTHONPATH: path.join(ROOT_DIR, 'src'),
+                UV_CACHE_DIR,
             },
         });
 

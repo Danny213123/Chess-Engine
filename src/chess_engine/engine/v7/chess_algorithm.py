@@ -28,35 +28,68 @@ _AUTO_BUILD_ATTEMPTED = False
 # is unbuilt.
 _engine = None
 
+_REQUIRED_NATIVE_API = ("Engine", "SearchResult", "perft", "evaluate")
 
-def _load_v7_engine():
+
+def _validate_native_module(module):
+    """Reject stale v7_engine builds that do not match this adapter."""
+    missing = [name for name in _REQUIRED_NATIVE_API if not hasattr(module, name)]
+    if missing:
+        raise V7UnavailableError(
+            "Loaded v7_engine is stale or incompatible; missing native binding(s): "
+            + ", ".join(missing)
+            + ". Rebuild V7 with `node cli/bin/chess-engine.js build v7`."
+        )
+    return module
+
+
+def _load_module_from_path(module_path):
+    spec = importlib.util.spec_from_file_location("v7_engine", module_path)
+    if spec is None or spec.loader is None:
+        raise V7UnavailableError(f"Unable to load V7 native module at {module_path}.")
+
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["v7_engine"] = module
+    try:
+        spec.loader.exec_module(module)
+        return _validate_native_module(module)
+    except Exception:
+        sys.modules.pop("v7_engine", None)
+        raise
+
+
+def _load_v7_engine(module_path=None):
+    if module_path is not None:
+        return _load_module_from_path(Path(module_path))
+
     try:
         import v7_engine
-        return v7_engine
+        try:
+            return _validate_native_module(v7_engine)
+        except V7UnavailableError:
+            sys.modules.pop("v7_engine", None)
+            raise
     except ImportError as original_error:
         v7_dir = Path(__file__).resolve().parent
+        load_error = original_error
         for module_path in v7_dir.glob("v7_engine*"):
             if module_path.suffix not in {".so", ".pyd", ".dylib"}:
                 continue
-
-            spec = importlib.util.spec_from_file_location("v7_engine", module_path)
-            if spec is None or spec.loader is None:
+            try:
+                return _load_module_from_path(module_path)
+            except Exception as path_error:
+                load_error = path_error
                 continue
 
-            module = importlib.util.module_from_spec(spec)
-            sys.modules["v7_engine"] = module
-            spec.loader.exec_module(module)
-            return module
-
-        raise original_error
+        raise load_error
 
 
-def reload_engine():
+def reload_engine(module_path=None):
     """Reload the native module after a build or path change."""
     global V7_AVAILABLE, _LOAD_ERROR, v7_engine, _engine
 
     try:
-        v7_engine = _load_v7_engine()
+        v7_engine = _load_v7_engine(module_path)
         V7_AVAILABLE = True
         _LOAD_ERROR = None
         # Drop any stale engine instance; it'll be re-created lazily on
@@ -87,11 +120,11 @@ def ensure_available(auto_build=False):
         from chess_engine.engine.v7.native_build import V7BuildError, build_v7_native
 
         try:
-            build_v7_native(force=True)
+            build_result = build_v7_native(force=True)
         except V7BuildError as error:
             raise V7UnavailableError(str(error)) from error
 
-        module = reload_engine()
+        module = reload_engine(build_result.module_path)
         if module is not None:
             return module
 
@@ -124,6 +157,30 @@ def _get_or_create_engine():
         module = ensure_available(auto_build=False)
         _engine = module.Engine()
     return _engine
+
+
+def _native_move_to_uci(move):
+    """Decode V7's packed 16-bit native move into UCI notation."""
+    try:
+        move_value = int(move)
+    except (TypeError, ValueError):
+        return ""
+
+    if move_value == 0:
+        return ""
+
+    from_sq = move_value & 0x3F
+    to_sq = (move_value >> 6) & 0x3F
+    move_type = (move_value >> 14) & 0x3
+    promo_index = (move_value >> 12) & 0x3
+
+    def square_name(square):
+        return f"{chr(ord('a') + (square & 7))}{1 + (square >> 3)}"
+
+    uci = square_name(from_sq) + square_name(to_sq)
+    if move_type == 1:
+        uci += "nbrq"[promo_index]
+    return uci
 
 
 def stop_engine():
@@ -207,7 +264,7 @@ def find_best_move(game_state, valid_moves, engine, search_info=None):
         if isinstance(best_move, str):
             move_str = best_move
         else:
-            move_str = getattr(result, "pv", "") or ""
+            move_str = _native_move_to_uci(best_move) or getattr(result, "pv", "") or ""
 
     stats = {
         "depth": depth,

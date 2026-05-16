@@ -14,6 +14,79 @@
 
 #include "syzygy.hpp"
 
+#ifndef V7_HAS_FATHOM
+
+#include <algorithm>
+#include <filesystem>
+#include <iostream>
+
+namespace v7 {
+
+namespace {
+
+bool dir_has_rtbw(const std::filesystem::path& dir) {
+    std::error_code ec;
+    auto it = std::filesystem::directory_iterator(dir, ec);
+    if (ec) return false;
+    for (const auto& entry : it) {
+        std::error_code ec2;
+        if (!entry.is_regular_file(ec2)) continue;
+        if (entry.path().extension() == ".rtbw") return true;
+    }
+    return false;
+}
+
+} // namespace
+
+void SyzygyState::set_path(const std::string& path) {
+    initialized_ = false;
+    tbhits_.store(0, std::memory_order_relaxed);
+
+    if (path.empty()) {
+        std::cerr << "[v7] syzygy: no path configured; tbhits will be 0\n";
+        return;
+    }
+
+    std::error_code ec;
+    std::filesystem::path p(path);
+    if (!std::filesystem::exists(p, ec) || !std::filesystem::is_directory(p, ec)) {
+        std::cerr << "[v7] syzygy: path not found: " << path
+                  << "; tbhits will be 0\n";
+        return;
+    }
+
+    if (!dir_has_rtbw(p)) {
+        std::cerr << "[v7] syzygy: no tablebase files at " << path
+                  << "; tbhits will be 0\n";
+        return;
+    }
+
+    std::cerr << "[v7] syzygy: tb_init failed at " << path
+              << "; tbhits will be 0\n";
+}
+
+void SyzygyState::set_max_pieces(unsigned n) {
+    max_pieces_ = std::clamp<unsigned>(n, 0u, 7u);
+}
+
+SyzygyState::~SyzygyState() = default;
+
+std::optional<ProbeResult> SyzygyState::probe_wdl(const Board&) const {
+    return std::nullopt;
+}
+
+std::optional<int> SyzygyState::probe_root_dtz(const Board&) const {
+    return std::nullopt;
+}
+
+bool SyzygyState::smoke_probe_krk() const {
+    return false;
+}
+
+} // namespace v7
+
+#else
+
 #include "board.hpp"
 #include "movegen.hpp"   // inline bishop/rook/queen_attacks() + extern arrays
 #include "types.hpp"
@@ -385,3 +458,5 @@ bool SyzygyState::smoke_probe_krk() const {
 }
 
 } // namespace v7
+
+#endif

@@ -36,6 +36,9 @@ namespace v7 {
 // Full evaluation — returns centipawns from side-to-move's perspective.
 int evaluate(const Board& board);
 
+// Static exchange estimate used by quiescence SEE pruning.
+int see(const Board& board, Move m);
+
 // Binding entry: parses a FEN, evaluates, returns the score.
 // Python tests + future Phase 4 tuner harness use this.
 int evaluate_entry(const std::string& fen);

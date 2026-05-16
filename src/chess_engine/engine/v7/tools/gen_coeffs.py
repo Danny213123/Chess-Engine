@@ -53,7 +53,7 @@ HEADER_TEMPLATE = (
     "\n"
     '#include "coeffs.hpp"\n'
     "\n"
-    "namespace v7::coeffs {\n"
+    "namespace v7::coeffs {{\n"
     "\n"
 )
 

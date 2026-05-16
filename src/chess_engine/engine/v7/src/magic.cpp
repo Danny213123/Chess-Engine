@@ -2,6 +2,8 @@
 #include "movegen.hpp"
 #include "board.hpp"
 
+#include <mutex>
+
 namespace v7 {
 
 // =============================================================================
@@ -122,6 +124,8 @@ static Bitboard init_mask(Square sq, bool is_rook) {
 // =============================================================================
 
 void init_magics() {
+    static std::once_flag init_once;
+    std::call_once(init_once, []() {
     // Initialize knight/king/pawn attack tables
     extern void init_move_tables();
     init_move_tables();
@@ -129,11 +133,8 @@ void init_magics() {
     // Initialize Zobrist keys
     Zobrist::init();
 
-    // NOTE: V6's init_magics() also called init_pst() (from eval.cpp) and
-    // init_lmr_table() (from search.cpp). V7's eval/search live in Plan 04
-    // and Plan 03 respectively; those plans wire their own init hooks (or
-    // re-add them here). Plan 02 deliberately omits those calls so the
-    // module links cleanly with empty eval/search stubs.
+    extern void init_lmr_table();
+    init_lmr_table();
 
     // Initialize bishop magics
     for (int sq = 0; sq < 64; ++sq) {
@@ -190,6 +191,7 @@ void init_magics() {
             ROOK_ATTACKS[sq][idx] = rook_attacks_slow(sq, occ);
         }
     }
+    });
 }
 
 } // namespace v7

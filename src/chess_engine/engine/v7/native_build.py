@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import importlib.util
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -60,6 +62,17 @@ def _find_built_module() -> Path | None:
             if any(lower_name.endswith(suffix) for suffix in suffixes):
                 return module_path
     return None
+
+
+def _cleanup_rebuilt_modules() -> None:
+    for module_path in V7_DIR.glob(f"{MODULE_PREFIX}_rebuilt_*"):
+        lower_name = module_path.name.lower()
+        if not any(lower_name.endswith(suffix) for suffix in _module_suffixes()):
+            continue
+        try:
+            module_path.unlink()
+        except OSError:
+            pass
 
 
 def _tail(text: str, limit: int = 4000) -> str:
@@ -121,17 +134,16 @@ def build_v7_native(force: bool = False) -> V7BuildResult:
             "then try selecting V7 again."
         )
 
-    # Plan 05 lands the Fathom submodule under extern/fathom; surface a
-    # clear diagnostic if the submodule isn't fetched yet so users know to
-    # run the git command. Plan 01 ships no Fathom dependency, so we only
-    # warn (don't fail) when the directory is missing — the build itself
-    # is unaffected this phase.
+    # Fathom/Syzygy is optional. If the submodule directory exists but is not
+    # populated, keep building V7 without tablebase probing; CMake has the same
+    # EXISTS guard. Failing here would make auto-build unusable after a partial
+    # submodule checkout.
     fathom_src = V7_DIR / "extern" / "fathom" / "src" / "tbprobe.c"
     if (V7_DIR / "extern" / "fathom").exists() and not fathom_src.exists():
-        raise V7BuildError(
-            "V7 build requires Fathom (extern/fathom/src/tbprobe.c) but it was not found. "
-            "Run 'git submodule update --init --recursive' first to fetch Fathom "
-            "(extern/fathom/src/tbprobe.c)."
+        print(
+            "V7 build warning: Fathom tablebase source was not found at "
+            "extern/fathom/src/tbprobe.c; building without Syzygy probing.",
+            file=sys.stderr,
         )
 
     _sync_build_dependencies()
@@ -159,6 +171,14 @@ def build_v7_native(force: bool = False) -> V7BuildResult:
 
     destination = V7_DIR / built_module.name
     if built_module.resolve() != destination.resolve():
+        shutil.copy2(built_module, destination)
+
+    if force:
+        _cleanup_rebuilt_modules()
+        suffix = built_module.name[len(MODULE_PREFIX):]
+        destination = V7_DIR / (
+            f"{MODULE_PREFIX}_rebuilt_{os.getpid()}_{time.time_ns()}{suffix}"
+        )
         shutil.copy2(built_module, destination)
 
     return V7BuildResult(module_path=destination, built=True)

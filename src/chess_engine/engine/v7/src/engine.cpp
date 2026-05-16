@@ -18,6 +18,7 @@
 //     edits the m.def block this wave; this TU does not touch it)
 
 #include "engine.hpp"
+#include "magic.hpp"
 #include "search.hpp"
 #include "tt.hpp"
 #include "types.hpp"
@@ -51,6 +52,8 @@ void Engine::new_game() {
 }
 
 SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
+    init_magics();
+
     // -------------------------------------------------------------------------
     // FOUND-04 — drop any stop request from a PREVIOUS search before starting.
     // Without this, a stop() landing between two consecutive search() calls
