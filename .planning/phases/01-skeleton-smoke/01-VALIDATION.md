@@ -42,6 +42,19 @@ created: 2026-05-15
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | TBD     | TBD  | TBD  | TBD         | —          | —               | TBD       | TBD               | ❌ W0       | ⬜ pending |
 | 02-T2   | 02   | 2    | FOUND-06    | T-02-01    | V7 perft matches V6 perft on canonical 5-position corpus | unit/parity | `python3 -m uv run --group dev pytest tests/test_v7_perft.py -q -m "not slow"` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-01     | T-04-03,T-04-04 | coeffs.json material_mg/_eg per piece present (Pesto) | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-02     | T-04-03,T-04-04 | coeffs.json pst_mg/pst_eg 12×64 tables present (Pesto) | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-03     | T-04-03,T-04-04 | coeffs.json phase_weights present (Pesto) | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-04     | T-04-03,T-04-04 | mobility tables (knight 9, bishop 14, rook 15, queen 28) mg+eg present | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-05     | T-04-03    | bishop_pair_mg/eg present | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-06     | T-04-03    | rook_open_file / rook_semi_open_file present | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-07     | T-04-03    | threat_minor_by_pawn / threat_rook_by_minor / threat_queen_by_rook present | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-08     | T-04-03    | king_attack_table[100] + pawn-structure terms (doubled/isolated/backward/passed) present | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | EVAL-09     | T-04-03    | tempo_mg / tempo_eg present | schema | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_json_schema -q` | ✅          | ⬜ pending |
+| 04-T2   | 04   | 3    | EVAL-10     | T-04-03    | eval.cpp reads every weight via v7::coeffs::* (no hardcoded weight literals) | unit/grep | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_eval_terms_use_coeffs -q` | ✅          | ⬜ pending |
+| 04-T2   | 04   | 3    | EVAL-11     | T-04-03    | tapered combine `(mg*phase + eg*(24-phase))/24` present in eval.cpp; startpos eval in [-50,+50] | unit+grep | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_eval_startpos_balanced -q && grep -E '\* phase\s*\+\s*\w+\s*\*\s*\(24\s*-\s*phase\)' src/chess_engine/engine/v7/src/eval.cpp` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | -          | T-04-04    | gen_coeffs.py deterministic (sorted keys, LF) — defends against tamper-via-codegen-drift | unit | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_codegen_deterministic tests/test_v7_eval.py::test_codegen_regenerates_on_change -q` | ✅          | ⬜ pending |
+| 04-T1   | 04   | 3    | -          | T-04-03    | src/coeffs.cpp gitignored (D-12) | unit | `python3 -m uv run --group dev pytest tests/test_v7_eval.py::test_coeffs_cpp_gitignored -q` | ✅          | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
