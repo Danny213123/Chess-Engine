@@ -49,32 +49,12 @@ void Engine::set_syzygy_path(const std::string& path) {
               << "; tbhits will be 0\n";
 }
 
-void Engine::new_game() {
-    // Plan 02: reset atomics AND clear the TT (real Engine::tt_ member now
-    // exists, replacing the Plan 01 atomic-only reset). Plan 03 also clears
-    // the repetition stack via rep_stack_.clear() here.
-    stop_flag_.store(false, std::memory_order_relaxed);
-    tbhits_.store(0, std::memory_order_relaxed);
-    nodes_.store(0, std::memory_order_relaxed);
-    tt_.clear();
-}
-
-SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
-    // Plan 02 stub: still no real search body (Plan 03 owns the real
-    // iterative deepening fork from V6). Bumps nodes_ once so the
-    // GIL-release test has observable work, then returns a neutral
-    // SearchResult. fen/time_ms intentionally unused at this stage.
-    (void)fen;
-    (void)time_ms;
-    nodes_.fetch_add(1, std::memory_order_relaxed);
-    SearchResult r;
-    r.best_move = MOVE_NONE;
-    r.depth = depth;
-    r.nodes = nodes_.load(std::memory_order_relaxed);
-    return r;
-}
-
-// perft_entry lives in src/perft.cpp now — no stub here.
+// Plan 03 — Engine::new_game and Engine::search now live in src/engine.cpp
+// (real iterative-deepening body wiring SearchInfo.external_stop and
+// SearchInfo.rep_stack). Engine::set_syzygy_path inline body remains above
+// through Plan 03 and is moved to src/syzygy.cpp by Plan 05.
+//
+// perft_entry lives in src/perft.cpp (Plan 02) — no stub here.
 
 } // namespace v7
 
