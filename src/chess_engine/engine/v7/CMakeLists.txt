@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.15)
-# NB: add C to LANGUAGES because Fathom's tbprobe.c (plan 05) is C99.
-# Declared from plan 01 so plan 05 doesn't need to re-touch this line.
+# NB: C is added conditionally inside the Fathom block below via
+# `enable_language(C)`. Plan 01 ALSO listed C up-front; we keep it here so
+# CMake's first-pass language scan succeeds even if Fathom is absent and the
+# Fathom block is short-circuited by its EXISTS guard.
 project(v7_engine LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -38,15 +40,55 @@ if (NOT pybind11_FOUND)
     FetchContent_MakeAvailable(pybind11)
 endif()
 
-# Sources for the pybind11 module. Plan 01 only ships the python_bindings
-# translation unit (everything else is stubbed in the header). Subsequent
-# plans add their sources via the TODO markers below.
+# =============================================================================
+# COEFFS CODEGEN (Plan 04 supplies coeffs.json + tools/gen_coeffs.py)
+# =============================================================================
+#
+# Pre-staged here so Plan 04 does not need to touch CMakeLists.txt. When
+# coeffs.json is absent (Plan 02 timeline), we write a placeholder coeffs.cpp
+# so CMake configure succeeds. Plan 04's first build re-triggers configure
+# (CMakeLists hash + gen_coeffs.py touch) and the real add_custom_command path
+# becomes active.
+set(COEFFS_JSON ${CMAKE_CURRENT_SOURCE_DIR}/coeffs.json)
+set(COEFFS_CPP  ${CMAKE_CURRENT_SOURCE_DIR}/src/coeffs.cpp)
+if(EXISTS ${COEFFS_JSON})
+    add_custom_command(
+        OUTPUT ${COEFFS_CPP}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_coeffs.py
+                ${COEFFS_JSON} ${COEFFS_CPP}
+        DEPENDS ${COEFFS_JSON} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_coeffs.py
+        COMMENT "Generating coeffs.cpp from coeffs.json"
+        VERBATIM
+    )
+else()
+    # Plan 04 has not landed yet — write a transient empty coeffs.cpp so CMake
+    # configure + build succeed. Plan 04 replaces this via the real add_custom_command.
+    if(NOT EXISTS ${COEFFS_CPP})
+        file(WRITE ${COEFFS_CPP}
+             "// placeholder until Plan 04 lands coeffs.json + tools/gen_coeffs.py\n")
+    endif()
+endif()
+
+# =============================================================================
+# FULL V7 SOURCE LIST (Wave-collapse enabler — Plans 03/04/05 do NOT touch this)
+# =============================================================================
+#
+# Every Wave-3 source is enumerated here so Plans 03 (search/engine), 04
+# (eval/coeffs), and 05 (syzygy) only write CONTENT into existing files and
+# never modify CMakeLists.txt. This is the structural precondition for
+# running Plans 03/04/05 in parallel as Wave 3 (zero file-conflict overlap).
 set(V7_SOURCES
-    src/python_bindings.cpp
-    # TODO(plan-02): add board.cpp, movegen.cpp, magic.cpp, tt.cpp here
-    # TODO(plan-03): add search.cpp
-    # TODO(plan-04): add eval.cpp + generated src/coeffs.cpp
-    # TODO(plan-05): add syzygy.cpp + Fathom subdirectory (extern/fathom/src/tbprobe.c)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/board.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/movegen.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/magic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/tt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/perft.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/search.cpp     # Plan 03 fills (currently stub)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/engine.cpp     # Plan 03 fills (currently stub)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.cpp       # Plan 04 fills (currently stub)
+    ${COEFFS_CPP}                                  # Plan 04 generates via add_custom_command
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp     # Plan 05 fills (currently stub)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/python_bindings.cpp
 )
 
 pybind11_add_module(v7_engine MODULE ${V7_SOURCES})
@@ -60,15 +102,59 @@ if (OpenMP_CXX_FOUND)
     target_link_libraries(v7_engine PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-# v7_uci standalone executable (FOUND-07). Plan 01 ships a stub uci_main.cpp
-# that implements the minimal handshake required by the FOUND-07 existence
-# check; full UCI loop (position/go/stop/etc.) lands in plan 06. Plans
-# 03/04/05 will extend the source list via target_sources() as they add
-# the real engine body.
-add_executable(v7_uci src/uci_main.cpp)
+# =============================================================================
+# v7_uci standalone executable (FOUND-07)
+# =============================================================================
+#
+# Plan 01 shipped a stub uci_main.cpp that satisfies the FOUND-07 existence
+# check; the full UCI loop (position/go/stop/etc.) lands in Plan 06. Reuses
+# V7_SOURCES so Wave-3 plans don't need to extend a separate source list.
+add_executable(v7_uci
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uci_main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/board.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/movegen.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/magic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/tt.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/perft.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/search.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.cpp
+    ${COEFFS_CPP}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp
+)
 target_include_directories(v7_uci PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 if (OpenMP_CXX_FOUND)
     target_link_libraries(v7_uci PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+# =============================================================================
+# Fathom (Syzygy probing) — pre-staged in Wave 2 with EXISTS guard
+# =============================================================================
+#
+# Plan 05 adds the submodule at extern/fathom. Until then this block
+# short-circuits so CMake configure succeeds without the source tree.
+#
+# CRITICAL ORDERING (TB-02): V7's own include/ MUST precede Fathom's so the
+# project-owned tbconfig.h override wins during Fathom's preprocessor pass.
+set(FATHOM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extern/fathom)
+if(EXISTS ${FATHOM_DIR}/src/tbprobe.c)
+    enable_language(C)  # Fathom's tbprobe.c is C99
+
+    target_include_directories(v7_engine PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include   # OUR tbconfig.h (Plan 05 creates) — FIRST
+        ${FATHOM_DIR}/src                     # Fathom headers (tbprobe.h)
+    )
+    target_sources(v7_engine PRIVATE ${FATHOM_DIR}/src/tbprobe.c)
+
+    target_include_directories(v7_uci PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${FATHOM_DIR}/src
+    )
+    target_sources(v7_uci PRIVATE ${FATHOM_DIR}/src/tbprobe.c)
+
+    set_source_files_properties(${FATHOM_DIR}/src/tbprobe.c PROPERTIES LANGUAGE C)
+else()
+    message(STATUS "[v7] Fathom submodule absent; Syzygy probing disabled at build (Plan 05 will add submodule)")
 endif()
