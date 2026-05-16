@@ -33,7 +33,13 @@
   4. Pressing Stop in the UI cancels a V7 search within ~50 ms (cancellation token reaches the C++ search via the new `algo_v7.stop()` contract — closes V6's gap)
   5. With `syzygyPath` set to a 3-4-5 men tablebase directory, `tbhits > 0` is reported in search info for an in-range position; with `syzygyPath` unset, V7 still plays correctly with `tbhits = 0`
   6. V1–V6 engines continue to dispatch and return legal moves after V7 is added (existing pytest suite passes unchanged)
-**Plans**: TBD
+**Plans**: 6 plans
+- [ ] 01-01-PLAN.md — Wave 1: Fork V6 scaffold + stateful Engine class (FOUND-01/02/03/04/05/07, INT-09)
+- [ ] 01-02-PLAN.md — Wave 2: Port board/movegen/magic/zobrist + perft parity vs V6 (FOUND-06)
+- [ ] 01-03-PLAN.md — Wave 3 (B1): Sequential PVS search + 4 hardening patches (SRCH-01/02/13/14/15, FOUND-04)
+- [ ] 01-04-PLAN.md — Wave 4 (B2): coeffs.json + gen_coeffs.py + eval.cpp scaffolding all 11 EVAL terms (EVAL-01..11)
+- [ ] 01-05-PLAN.md — Wave 5 (B3): Fathom submodule + tbconfig.h override + syzygy.cpp + D-08 init logs (TB-01..08, TB-10, INT-06)
+- [ ] 01-06-PLAN.md — Wave 6 (C1): GameManager + React UI + Node CLI + smoke tests + v7_uci (INT-01..05, INT-07/08/09, TB-09, FOUND-07)
 **UI hint**: yes
 
 ### Phase 2: Gauntlet Harness Early
@@ -98,7 +104,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Skeleton + Smoke | 0/? | Not started | - |
+| 1. Skeleton + Smoke | 0/6 | Planned | - |
 | 2. Gauntlet Harness Early | 0/? | Not started | - |
 | 3. Lockless TT + Search Refinements + Endgame | 0/? | Not started | - |
 | 4. Lazy SMP + Texel Tuning | 0/? | Not started | - |
