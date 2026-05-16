@@ -34,7 +34,7 @@
   5. With `syzygyPath` set to a 3-4-5 men tablebase directory, `tbhits > 0` is reported in search info for an in-range position; with `syzygyPath` unset, V7 still plays correctly with `tbhits = 0`
   6. V1–V6 engines continue to dispatch and return legal moves after V7 is added (existing pytest suite passes unchanged)
 **Plans**: 6 plans
-- [ ] 01-01-PLAN.md — Wave 1: Fork V6 scaffold + stateful Engine class (FOUND-01/02/03/04/05/07, INT-09)
+- [x] 01-01-PLAN.md — Wave 1: Fork V6 scaffold + stateful Engine class (FOUND-01/02/03/04/05/07, INT-09)
 - [ ] 01-02-PLAN.md — Wave 2: Port board/movegen/magic/zobrist + perft parity vs V6 (FOUND-06)
 - [ ] 01-03-PLAN.md — Wave 3 (B1): Sequential PVS search + 4 hardening patches (SRCH-01/02/13/14/15, FOUND-04)
 - [ ] 01-04-PLAN.md — Wave 4 (B2): coeffs.json + gen_coeffs.py + eval.cpp scaffolding all 11 EVAL terms (EVAL-01..11)

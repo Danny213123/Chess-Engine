@@ -1,11 +1,15 @@
 // V7 Engine class header.
 //
-// Plan 01 ships stub bodies that compile and load cleanly so the pybind11
-// binding contract can be locked from day one (FOUND-04 / FOUND-05). Plans
-// 02/03/05 fill in the real Board / TT / Search / Syzygy state behind the
-// same public surface — callers should never need to be modified.
+// Plan 01 shipped this with stubs and forward-declared TT/Board/SyzygyState
+// opaques. Plan 02 (this) wires the real Board and TT members (the data
+// structures forked from V6 into v7::). Plans 03/05 add rep_stack_ and
+// real syzygy state behind the same public surface so callers don't change.
 
 #pragma once
+
+#include "board.hpp"
+#include "tt.hpp"
+#include "types.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -13,22 +17,18 @@
 
 namespace v7 {
 
-// MOVE_NONE: plan 01 placeholder. Plan 02 replaces with the real Move type.
-constexpr int MOVE_NONE = 0;
+// MOVE_NONE is now provided by types.hpp (real v7::Move type). Plan 01's
+// placeholder `constexpr int MOVE_NONE = 0;` was removed here; the typed
+// version from types.hpp covers the same value (uint16_t 0).
 
-// Forward declarations of types that land in later plans. Declaring them
-// opaque here keeps engine.hpp from pulling in the full subsystem headers
-// (which don't exist yet) while letting the Engine class hold them by
-// reference / pointer once plans 02 / 05 land.
-class TT;
-class Board;
+// Forward declaration of types that land in later plans. Syzygy lives in
+// Plan 05.
 struct SyzygyState;
 
-// Minimal SearchResult struct. Plan 03 expands with PV vector, full search
-// stats, and a proper Move type for best_move. The Python binding exposes
-// these as read-only properties so chess_algorithm.py can read them.
+// Minimal SearchResult struct. Plan 03 expands with PV vector and full
+// search stats. The Python binding exposes these as read-only properties.
 struct SearchResult {
-    int best_move = MOVE_NONE;   // plan 02: becomes v7::Move
+    Move best_move = MOVE_NONE;  // real v7::Move (uint16_t) from types.hpp
     int score = 0;
     int depth = 0;
     uint64_t nodes = 0;
@@ -39,23 +39,21 @@ class Engine {
 public:
     Engine() = default;
 
-    // set_syzygy_path: plan 01 logs the D-08 verbatim "no path configured"
-    // line on empty path, "path not found" on missing dir; plan 05 replaces
-    // with real filesystem checks + tb_init + KRk smoke probe.
+    // set_syzygy_path: plan 01 ships the D-08 verbatim "no path configured"
+    // / "path not found" log lines. Plan 05 replaces with real filesystem
+    // checks + tb_init + KRk smoke probe.
     void set_syzygy_path(const std::string& path);
 
-    // new_game: resets atomics. Plans 02/03 also clear TT + rep stack.
+    // new_game: resets atomics AND clears the TT. Plan 03 also clears the
+    // repetition stack (rep_stack_.clear()).
     void new_game();
 
-    // search: plan 01 ships a stub returning SearchResult{} with
-    // best_move=MOVE_NONE; bumps nodes_ by 1 so the GIL-release test has
-    // observable work. Plan 03 implements the real iterative deepening
-    // body.
+    // search: plan 01 ships a stub bumping nodes_ by 1. Plan 03 implements
+    // the real iterative deepening body.
     SearchResult search(const std::string& fen, int depth, int time_ms);
 
     // stop: flips the atomic stop flag. Fast — the binding does NOT release
-    // the GIL on this method; stop_engine() in Python may be called while
-    // another thread holds the GIL.
+    // the GIL on this method.
     void stop() { stop_flag_.store(true, std::memory_order_relaxed); }
 
     uint64_t tbhits() const { return tbhits_.load(std::memory_order_relaxed); }
@@ -65,15 +63,17 @@ private:
     std::atomic<bool>     stop_flag_{false};
     std::atomic<uint64_t> tbhits_{0};
     std::atomic<uint64_t> nodes_{0};
-    // TT          tt_;          // populated in plan 02
-    // Board       board_;       // populated in plan 02
-    // SyzygyState syzygy_;      // populated in plan 05
+
+    // Plan 02 wires the real subsystem members. Plan 03 adds rep_stack_
+    // here as `RepStack rep_stack_;` (NOT on Board — checker issue #3).
+    // Plan 05 adds `SyzygyState syzygy_;`.
+    TT    tt_{64};   // 64MB transposition table (matches V6 default)
+    Board board_;    // single working board; reset per search via from_fen
+    // SyzygyState syzygy_;   // populated in Plan 05
 };
 
-// Free-function perft entry: plan 02 implements the real body backed by
-// the ported move generator. Plan 01 returns 0 so the binding contract is
-// stable and the GIL-release call_guard wraps it from day one (FOUND-06
-// readiness).
+// Free-function perft entry: defined in src/perft.cpp (Plan 02 lands the
+// real body backed by the ported movegen).
 uint64_t perft_entry(const std::string& fen, int depth);
 
 } // namespace v7

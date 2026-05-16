@@ -10,6 +10,14 @@
 //      call guard (see the three .def(...) sites below). stop() is
 //      intentionally excluded — a single atomic write is fast and is
 //      invoked from another Python thread that already holds the GIL.
+//
+// Plan 02 update: removed the plan-01 `perft_entry` `return 0;` stub from
+// this TU. The real body lives in src/perft.cpp (free function
+// v7::perft_entry) and is bound below via `&v7::perft_entry`. The Engine
+// stub bodies (set_syzygy_path / new_game / search) remain here through
+// Plan 02 — Plan 03 moves Engine::search and Engine::new_game into
+// src/engine.cpp, and Plan 05 moves Engine::set_syzygy_path into
+// src/syzygy.cpp.
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -22,11 +30,11 @@
 
 namespace py = pybind11;
 
-// --- Engine stub implementations (plan 01) ---------------------------------
+// --- Engine stub implementations (Plans 02-pending; final in Plans 03/05) --
 //
-// These live in the same translation unit as the binding for plan 01 only:
-// plans 02/03/05 will move the real implementations into their own .cpp
-// files and add them to CMakeLists' V7_SOURCES via the TODO markers.
+// These live in this TU until the owning plan moves them: Plan 03 takes
+// Engine::new_game + Engine::search into src/engine.cpp; Plan 05 takes
+// Engine::set_syzygy_path into src/syzygy.cpp.
 
 namespace v7 {
 
@@ -42,16 +50,20 @@ void Engine::set_syzygy_path(const std::string& path) {
 }
 
 void Engine::new_game() {
+    // Plan 02: reset atomics AND clear the TT (real Engine::tt_ member now
+    // exists, replacing the Plan 01 atomic-only reset). Plan 03 also clears
+    // the repetition stack via rep_stack_.clear() here.
     stop_flag_.store(false, std::memory_order_relaxed);
     tbhits_.store(0, std::memory_order_relaxed);
     nodes_.store(0, std::memory_order_relaxed);
-    // plan 02/03: also tt_.clear() + rep_stack_.clear() here.
+    tt_.clear();
 }
 
 SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
-    // plan 01 stub: bump nodes_ once so the GIL-release test has observable
-    // work, then return a neutral SearchResult. Plan 03 lands the real
-    // iterative deepening body.
+    // Plan 02 stub: still no real search body (Plan 03 owns the real
+    // iterative deepening fork from V6). Bumps nodes_ once so the
+    // GIL-release test has observable work, then returns a neutral
+    // SearchResult. fen/time_ms intentionally unused at this stage.
     (void)fen;
     (void)time_ms;
     nodes_.fetch_add(1, std::memory_order_relaxed);
@@ -62,12 +74,7 @@ SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
     return r;
 }
 
-uint64_t perft_entry(const std::string& fen, int depth) {
-    // plan 02 lands the real perft body backed by the ported movegen.
-    (void)fen;
-    (void)depth;
-    return 0;
-}
+// perft_entry lives in src/perft.cpp now — no stub here.
 
 } // namespace v7
 
@@ -102,7 +109,10 @@ PYBIND11_MODULE(v7_engine, m) {
         .def("tbhits", &v7::Engine::tbhits)
         .def("nodes", &v7::Engine::nodes);
 
+    // Plan 02: real perft now lives in src/perft.cpp; the binding wires
+    // &v7::perft_entry directly so the FOUND-06 corpus has a working
+    // entry point even before Engine::search is real (Plan 03).
     m.def("perft", &v7::perft_entry,
           py::arg("fen"), py::arg("depth"),
-          py::call_guard<py::gil_scoped_release>());     // FOUND-06 parity readiness
+          py::call_guard<py::gil_scoped_release>());     // FOUND-06 parity
 }
