@@ -183,6 +183,175 @@ async function buildV6() {
     }
 }
 
+async function buildV7() {
+    // INT-05 — mirrors buildV6() shape. Invokes:
+    //   uv run --extra build python -m chess_engine.engine.v7.native_build
+    printSubHeader('Building V7 C++ Engine');
+
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    let command = 'uv';
+    let args = ['run', '--extra', 'build', 'python', '-m', 'chess_engine.engine.v7.native_build'];
+
+    try {
+        execSync('uv --version', { stdio: 'pipe' });
+    } catch {
+        command = pythonCmd;
+        args = ['-m', 'uv', 'run', '--extra', 'build', 'python', '-m', 'chess_engine.engine.v7.native_build'];
+    }
+
+    try {
+        execFileSync(command, args, {
+            cwd: ROOT_DIR,
+            stdio: 'inherit',
+            env: {
+                ...process.env,
+                PYTHONPATH: path.join(ROOT_DIR, 'src'),
+            },
+        });
+
+        setConfigValue('v7Built', true);
+        setConfigValue('lastBuildTime', new Date().toISOString());
+
+        log('\n' + '═'.repeat(50), colors.green);
+        logSuccess('V7 Engine built successfully!');
+        log('═'.repeat(50), colors.green);
+
+        return true;
+    } catch (error) {
+        logError(`Build failed: ${error.message}`);
+        return false;
+    }
+}
+
+// ============================================================
+// SYZYGY DOWNLOAD (TB-09)
+// ============================================================
+
+/**
+ * Resolve the default destination directory for Syzygy tablebases.
+ * Falls back to OS-specific user-data paths when config.syzygyPath is null.
+ */
+function defaultSyzygyPath() {
+    const config = loadConfig();
+    if (config.syzygyPath) return config.syzygyPath;
+
+    if (process.platform === 'win32') {
+        const base = process.env.LOCALAPPDATA
+            || path.join(os.homedir(), 'AppData', 'Local');
+        return path.join(base, 'chess-engine', 'syzygy');
+    }
+    if (process.platform === 'darwin') {
+        return path.join(os.homedir(), 'Library', 'Application Support',
+                         'chess-engine', 'syzygy');
+    }
+    // linux + freebsd + other
+    const xdg = process.env.XDG_DATA_HOME
+        || path.join(os.homedir(), '.local', 'share');
+    return path.join(xdg, 'chess-engine', 'syzygy');
+}
+
+/**
+ * Syzygy download subcommand (TB-09 / INT-05).
+ *
+ * Phase 1 scope (per plan 06): script presence is the requirement. We provide
+ * a working dry-run that resolves the destination + announces the upstream
+ * mirror, and a real-fetch path that streams a curated 3-4-5 men file list
+ * from the published Lichess mirror. The real download is intentionally
+ * implemented as a thin wrapper around `wget` (when on PATH) to avoid
+ * pulling a heavy node fetch lib into the CLI — keeps the CLI dependency
+ * footprint at zero (consistent with existing CLI style). Polite-use note:
+ * tablebase.lichess.ovh hosts a free mirror — please run this once and
+ * cache locally; do NOT loop the download from CI.
+ *
+ * --dry-run prints destination + file count without downloading; this is
+ * what the plan-06 verify gate exercises so a host without wget can still
+ * validate the wiring.
+ */
+async function syzygyDownload(opts) {
+    printSubHeader('Syzygy Tablebase Download');
+
+    const dest = defaultSyzygyPath();
+    const config = loadConfig();
+    const maxPieces = config.syzygyMaxPieces || 6;
+
+    // Phase-1-scope file list: 3-4-5 men tables (per plan-06 default).
+    // Authoritative public mirror: https://tablebase.lichess.ovh/tables/standard/3-4-5/
+    // Source for the file list: chessprogramming.org/Syzygy_Bases (3-4-5 men set
+    // ~290 files, ~1GB). We avoid hardcoding the full list here to keep this
+    // CLI source small; the dry-run prints the URL the real download walks.
+    const mirror = `https://tablebase.lichess.ovh/tables/standard/3-4-5/`;
+    const approxFileCount = 290;
+    const approxSizeGB = 1;
+
+    log(`  Destination:  ${colors.cyan}${dest}${colors.reset}`);
+    log(`  Mirror:       ${colors.cyan}${mirror}${colors.reset}`);
+    log(`  Max pieces:   ${colors.cyan}${maxPieces}${colors.reset}`);
+    log(`  Approx files: ${colors.cyan}${approxFileCount} (.rtbw + .rtbz)${colors.reset}`);
+    log(`  Approx size:  ${colors.cyan}~${approxSizeGB} GB${colors.reset}`);
+
+    if (opts && opts.dryRun) {
+        log('');
+        log('  [dry-run] Would create destination directory + fetch tables.', colors.yellow);
+        log('  [dry-run] No bytes downloaded; no config mutation.', colors.yellow);
+        return true;
+    }
+
+    // Real download path: prefer wget (supports recursive directory mirror).
+    let downloader = null;
+    try { execSync('wget --version', { stdio: 'pipe' }); downloader = 'wget'; }
+    catch {
+        try {
+            execSync('curl --version', { stdio: 'pipe' });
+            downloader = 'curl';  // recognized, but recursive mirror not implemented in Phase 1
+        }
+        catch {
+            logError('Neither wget nor curl found on PATH. Install wget and re-run, or download manually.');
+            log('  Manual fallback: visit ' + mirror + ' and copy .rtbw/.rtbz files to');
+            log('    ' + dest);
+            return false;
+        }
+    }
+
+    try {
+        fs.mkdirSync(dest, { recursive: true });
+    } catch (e) {
+        logError(`Failed to create destination ${dest}: ${e.message}`);
+        return false;
+    }
+
+    log(`  Using ${downloader} for download…`, colors.cyan);
+    log('  This will take several minutes on a typical connection.', colors.yellow);
+
+    let downloadOk = false;
+    try {
+        if (downloader === 'wget') {
+            // -np: no parent ascent, -r: recurse the index, -nd: flatten dirs,
+            // -A: file pattern filter. Polite-use: single-run only.
+            execSync(
+                `wget -q --show-progress -np -r -nd -A "*.rtbw,*.rtbz" -P "${dest}" "${mirror}"`,
+                { stdio: 'inherit' }
+            );
+            downloadOk = true;
+        } else {
+            // curl can't recurse a directory listing easily; Phase 1 prefers wget.
+            log('  curl recursive mirror not implemented in Phase 1.', colors.yellow);
+            log('  Phase 1 supported path: install wget for real fetch, or use --dry-run for wiring smoke.');
+            log(`  Or manually: visit ${mirror} and copy .rtbw/.rtbz files into ${dest}`);
+            return false;
+        }
+    } catch (error) {
+        logError(`Download failed: ${error.message}`);
+        return false;
+    }
+
+    if (downloadOk) {
+        setConfigValue('syzygyPath', dest);
+        logSuccess(`Syzygy tables downloaded to ${dest}`);
+        logSuccess(`Config updated: syzygyPath = ${dest}`);
+    }
+    return downloadOk;
+}
+
 async function buildClient() {
     printSubHeader('Building Frontend');
 
@@ -444,13 +613,16 @@ async function main() {
 Chess Engine CLI
 
 Usage:
-  chess-engine              Interactive mode
-  chess-engine build v6     Build V6 C++ engine
-  chess-engine build client Build frontend
-  chess-engine start        Start server
-  chess-engine run-all      Build everything and start
-  chess-engine config       Configure engine settings
-  chess-engine stats        View statistics
+  chess-engine                       Interactive mode
+  chess-engine build v6              Build V6 C++ engine
+  chess-engine build v7              Build V7 C++ engine
+  chess-engine build client          Build frontend
+  chess-engine syzygy download [--dry-run]
+                                     Download Syzygy 3-4-5 men tablebases
+  chess-engine start                 Start server
+  chess-engine run-all               Build everything and start
+  chess-engine config                Configure engine settings
+  chess-engine stats                 View statistics
 
 Options:
   --version, -v    Show version
@@ -460,10 +632,20 @@ Options:
         case 'build':
             if (args[1] === 'v6') {
                 await buildV6();
+            } else if (args[1] === 'v7') {
+                await buildV7();
             } else if (args[1] === 'client') {
                 await buildClient();
             } else {
-                logError('Usage: chess-engine build [v6|client]');
+                logError('Usage: chess-engine build [v6|v7|client]');
+            }
+            break;
+        case 'syzygy':
+            if (args[1] === 'download') {
+                const dryRun = args.includes('--dry-run');
+                await syzygyDownload({ dryRun });
+            } else {
+                logError('Usage: chess-engine syzygy download [--dry-run]');
             }
             break;
         case 'start':

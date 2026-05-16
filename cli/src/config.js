@@ -15,6 +15,9 @@ const DEFAULT_CONFIG = {
     maxMemory: 512, // MB
     timeLimit: 5000, // ms
     v6Built: false,
+    v7Built: false,           // INT-04: tracked separately from v6Built
+    syzygyPath: null,         // INT-04 / TB-09: null => use OS-specific default
+    syzygyMaxPieces: 6,       // INT-04 / TB-09: 3-4-5-6 men supported
     lastBuildTime: null,
     cmakePath: null,  // Auto-detected
 };

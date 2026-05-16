@@ -232,8 +232,8 @@ function App() {
   const switchEngine = async (ver, color) => {
     setEngineSwitching(true);
     setError("");
-    if (ver === "v6") {
-      const message = "Preparing V6 native engine; first use may build locally.";
+    if (ver === "v6" || ver === "v7") {
+      const message = `Preparing ${ver.toUpperCase()} native engine; first use may build locally.`;
       setEngineStatus(message);
       log(message);
     } else {
@@ -405,6 +405,7 @@ function App() {
               disabled={engineSwitching}
             >
               <option value="human">White: Human</option>
+              <option value="v7">White: V7 (C++)</option>
               <option value="v6">White: V6 (C++)</option>
               <option value="v5d">White: V5d (5s)</option>
               <option value="v5c">White: V5c</option>
@@ -420,6 +421,7 @@ function App() {
               disabled={engineSwitching}
             >
               <option value="human">Black: Human</option>
+              <option value="v7">Black: V7 (C++)</option>
               <option value="v6">Black: V6 (C++)</option>
               <option value="v5d">Black: V5d (5s)</option>
               <option value="v5c">Black: V5c</option>
