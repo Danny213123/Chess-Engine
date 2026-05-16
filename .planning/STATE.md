@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-05-16T04:24:42.126Z"
+last_updated: "2026-05-16T17:12:24.750Z"
 progress:
   total_phases: 5
   completed_phases: 0
@@ -23,6 +23,9 @@ progress:
 - **Current Focus**: Phase 1 — Skeleton + Smoke (V7 plays a legal game vs V6 end-to-end)
 
 ## Current Position
+
+Phase: 01 (skeleton-smoke) — EXECUTING
+Plan: 1 of 6
 
 - **Milestone**: V7 (initial)
 - **Phase**: 1 of 5 — Skeleton + Smoke
