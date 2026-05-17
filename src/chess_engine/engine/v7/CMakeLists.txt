@@ -70,6 +70,25 @@ else()
 endif()
 
 # =============================================================================
+# KPK BITBASE CODEGEN (Plan 03-04 — mirrors COEFFS_CPP pattern above)
+# =============================================================================
+#
+# Pre-staged here so Plan 03-04 does not need to re-open CMakeLists.txt.
+# tools/gen_kpk.py enumerates all legal KPK positions, classifies via BFS,
+# cross-checks against Fathom (deferred on Windows dev host — see PATTERNS.md
+# Shared Pattern 5), and emits src/kpk_bitbase.cpp containing a packed
+# uint8_t[] table. The emitted .cpp is gitignored (D-10/D-12).
+set(KPK_CPP ${CMAKE_CURRENT_SOURCE_DIR}/src/kpk_bitbase.cpp)
+add_custom_command(
+    OUTPUT ${KPK_CPP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_kpk.py
+            ${KPK_CPP}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_kpk.py
+    COMMENT "Generating kpk_bitbase.cpp via tools/gen_kpk.py"
+    VERBATIM
+)
+
+# =============================================================================
 # FULL V7 SOURCE LIST (Wave-collapse enabler — Plans 03/04/05 do NOT touch this)
 # =============================================================================
 #
@@ -91,6 +110,9 @@ set(V7_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/python_bindings.cpp
     # Plan 03-01 cross-Wave-2 scaffold: MovePicker stub (Plan 03-02 Task 2 fills body)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/search/move_picker.cpp
+    # Plan 03-04: endgame eval + KPK bitbase codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/endgame.cpp
+    ${KPK_CPP}
 )
 
 pybind11_add_module(v7_engine MODULE ${V7_SOURCES})
@@ -124,6 +146,9 @@ add_executable(v7_uci
     ${COEFFS_CPP}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/search/move_picker.cpp  # Plan 03-01 scaffold
+    # Plan 03-04: endgame eval + KPK bitbase codegen
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/endgame.cpp
+    ${KPK_CPP}
 )
 target_include_directories(v7_uci PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
