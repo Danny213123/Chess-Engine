@@ -56,3 +56,34 @@ find_package(OpenMP QUIET)
 if (OpenMP_CXX_FOUND)
     target_link_libraries(v6_engine PRIVATE OpenMP::OpenMP_CXX)
 endif()
+
+# =============================================================================
+# v6_uci standalone executable (Phase 2 GAUNT-02)
+# =============================================================================
+#
+# Satisfies project_v6_v7_uci_gaps.md gap #1: fastchess requires a process to
+# exec, but V6 historically shipped only the v6_engine pybind11 module. This
+# target mirrors V7's add_executable(v7_uci ...) block (PATTERNS §"CMake
+# additive-target discipline") and is purely additive — the v6_engine module
+# above MUST continue to build (INT-08 invariant from Phase 1).
+#
+# Source list = intersection of (V6 source files) and (files the UCI loop
+# actually references). Excludes:
+#   - python_bindings.cpp  (pybind11 symbols won't link without Python)
+#   - bench.cpp            (defines its own main())
+#   - perft.cpp            (defines its own main())
+add_executable(v6_uci
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/uci_main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/board.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/magic.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/movegen.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/search.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/tt.cpp
+)
+target_include_directories(v6_uci PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+if (OpenMP_CXX_FOUND)
+    target_link_libraries(v6_uci PRIVATE OpenMP::OpenMP_CXX)
+endif()
