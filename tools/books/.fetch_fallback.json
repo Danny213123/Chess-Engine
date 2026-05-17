@@ -1,0 +1,6 @@
+{
+  "url": "https://github.com/official-stockfish/books/raw/master/8moves_v3.pgn.zip",
+  "sha256": "PENDING_HUMAN_CHECKPOINT",
+  "unzip_entry": "8moves_v3.pgn",
+  "reason": "Vendoring deferred: executor lacked network egress + working Python interpreter to (a) verify upstream LICENSE compatibility and (b) compute the upstream zip sha256 via a trusted second-path session. Per D-02 the executor MUST NOT introduce binary-asset hashes without human re-verification. Plan 02-04b's resolve_opening_book() will refuse to run while sha256 holds the sentinel, matching the same trust-gate pattern used by tools/fetch_fastchess.py."
+}

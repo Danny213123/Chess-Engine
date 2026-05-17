@@ -78,3 +78,9 @@ src/chess_engine/engine/v7/v7_engine*.pyd
 src/chess_engine/engine/v7/v7_engine*.dylib
 src/chess_engine/engine/v7/v7_uci
 src/chess_engine/engine/v7/v7_uci.exe
+
+# Phase 2: gauntlet artifacts (downloaded binaries + run results)
+tools/.cache/
+.planning/gauntlets/
+src/chess_engine/engine/v6/v6_uci
+src/chess_engine/engine/v6/v6_uci.exe
