@@ -1,0 +1,24 @@
+Starting tournament: V7 vs V6
+SPRT bounds: elo0=0 elo1=10 alpha=0.05 beta=0.05
+TC: 10+0.1, Hash=64, Threads=1, Concurrency=1
+
+------- Tournament progress (after round 1000) -------
+Elo  | 10.20 +- 9.45 (95%)
+SPRT | -2.25 < 1.50 < 2.89
+LLR  | 1.50 (-2.25, 2.89) [0.00, 5.00]
+Games | N: 2000 W: 540 L: 480 D: 980
+Penta | [50, 200, 400, 250, 100]
+-----------------------------------------------------
+
+Finished game 1001 (v7 vs v6): 1-0 {White mates}
+Finished game 1002 (v6 vs v7): 0-1 {Black mates}
+
+------- Tournament progress (after round 2093) -------
+Elo  | 13.87 +- 7.58 (95%)
+SPRT | -2.25 < 2.90 < 2.89
+LLR  | 2.90 (-2.25, 2.89) [0.00, 5.00]
+Games | N: 4186 W: 1197 L: 1030 D: 1959
+Penta | [130, 455, 782, 570, 156]
+-----------------------------------------------------
+
+SPRT result: H1 accepted (LLR >= upper bound)

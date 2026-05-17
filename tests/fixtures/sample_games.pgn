@@ -1,0 +1,65 @@
+[Event "V7 vs V6 sample fixture"]
+[Site "?"]
+[Date "2026.05.17"]
+[Round "1"]
+[White "v7"]
+[Black "v6"]
+[Result "1-0"]
+[Termination "normal"]
+
+1. e4 {nps=850000} e5 {nps=612000} 2. Nf3 {nps=860000} Nc6 {nps=625000} 1-0
+
+[Event "V7 vs V6 sample fixture"]
+[Site "?"]
+[Date "2026.05.17"]
+[Round "2"]
+[White "v6"]
+[Black "v7"]
+[Result "1-0"]
+[Termination "time forfeit"]
+
+1. e4 {nps=610000} e5 {nps=845000} 2. Nf3 {nps=620000} Nc6 {nps=855000} 1-0
+
+[Event "V7 vs V6 sample fixture"]
+[Site "?"]
+[Date "2026.05.17"]
+[Round "3"]
+[White "v7"]
+[Black "v6"]
+[Result "0-1"]
+[Termination "Time Forfeit"]
+
+1. e4 e5 2. Nf3 Nc6 0-1
+
+[Event "V7 vs V6 sample fixture"]
+[Site "?"]
+[Date "2026.05.17"]
+[Round "4"]
+[White "v7"]
+[Black "v6"]
+[Result "0-1"]
+[Termination "on time"]
+
+1. e4 e5 2. Nf3 Nc6 0-1
+
+[Event "V7 vs V6 sample fixture"]
+[Site "?"]
+[Date "2026.05.17"]
+[Round "5"]
+[White "v6"]
+[Black "v7"]
+[Result "1/2-1/2"]
+[Termination "adjudication"]
+
+1. e4 e5 2. Nf3 Nc6 1/2-1/2
+
+[Event "V7 vs V6 sample fixture"]
+[Site "?"]
+[Date "2026.05.17"]
+[Round "6"]
+[White "v7"]
+[Black "v6"]
+[Result "0-1"]
+[Termination "weird new string"]
+
+1. e4 e5 2. Nf3 Nc6 0-1
