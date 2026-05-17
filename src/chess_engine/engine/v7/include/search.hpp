@@ -1,6 +1,15 @@
 // V7 search header — fork of v6/include/search.hpp with the four pre-C1
 // must-fixes layered on top (FOUND-04, SRCH-02, SRCH-13, SRCH-14, SRCH-15).
 //
+// Plan 03-01 additions (D-01, D-03):
+//   - MAX_PLY constant (128) — bounds the triangular PV array and SearchStack
+//   - SearchStack struct — owns triangular pv[MAX_PLY][MAX_PLY], pv_length[],
+//     killers[MAX_PLY][2], excluded_move[MAX_PLY] (for Plan 03-03 singular ext)
+//   - SearchInfo gains: max_depth, tt*, search_stack*, history*, counter_moves*
+//     non-owning pointers (mirroring rep_stack pattern at lines 83-86), and
+//     options* (D-06 UCI toggles struct, wired in Task 2).
+//   - SearchInfo::reset() updated — preserves all non-owning pointers.
+//
 // V6 AUDIT (per plan 03 task 1 step 1):
 //   - V6 does NOT implement score_to_tt / score_from_tt anywhere
 //     (grepped v6/src/tt.cpp + v6/include/tt.hpp + v6/src/search.cpp — only
@@ -23,6 +32,21 @@
 #include <vector>
 
 namespace v7 {
+
+// Forward declarations
+class TT;
+struct EngineOptions;  // D-06: UCI option toggles — defined in search/options.hpp
+
+// =============================================================================
+// MAX_PLY CONSTANT (D-03)
+// =============================================================================
+//
+// Bounds the SearchStack triangular PV array and the per-ply killers / excluded
+// arrays. 128 covers all reachable search plies under normal tournament play
+// (Assumption A3 in 03-RESEARCH.md). Compile-time constant so the SearchStack
+// on Engine is a zero-allocation fixed-size member with no heap pressure.
+
+constexpr int MAX_PLY = 128;  // D-03: covers all reachable plies
 
 // =============================================================================
 // REPETITION STACK (SRCH-14)
@@ -48,6 +72,37 @@ struct RepStack {
 };
 
 // =============================================================================
+// SEARCH STACK (D-03) — per-ply persistent state
+// =============================================================================
+//
+// Owned by Engine (see engine.hpp `SearchStack search_stack_;`) — a single
+// allocation covering the full MAX_PLY depth. alpha_beta writes into this
+// at its ply offset; no dynamic allocation occurs inside the search loop.
+//
+// Triangular PV layout (RESEARCH.md Pattern 2):
+//   pv[ply][ply..pv_length[ply]-1] holds the principal variation rooted at ply.
+//   On new best move at ply: copy ply+1's line into ply's tail.
+//
+// killers[ply][0..1]: two killer slots per ply (Beta-cutoff quiet moves).
+//   Persistent across search() calls — Bug #2 fix (D-03).
+//
+// excluded_move[ply]: reserved for Plan 03-03 singular extensions.
+//   Initialized to MOVE_NONE; singular search sets/clears around re-search.
+//
+// SAFETY NOTE (T-03-02 in STRIDE table): sizeof(SearchStack) ≈
+//   128*128*2 + 128*4 + 128*2*2 + 128*2 = 32768 + 512 + 512 + 256 ≈ 34 KB.
+// Stack lives on Engine member, NOT on the C++ call stack, so max recursion
+// depth is bounded by MAX_PLY - 1 without stack-overflow risk.
+
+struct SearchStack {
+    Move pv[MAX_PLY][MAX_PLY];       // Triangular PV (D-03, Bug #3 fix)
+    int  pv_length[MAX_PLY];         // Length of PV rooted at each ply
+    Move killers[MAX_PLY][2];        // Killer heuristic (D-03, Bug #2 fix)
+    Move excluded_move[MAX_PLY];     // Singular extension exclusion (Plan 03-03)
+    // excluded_move = {} zero-init is safe because MOVE_NONE == 0 (types.hpp)
+};
+
+// =============================================================================
 // SEARCH INFO — Shared state for search control
 // =============================================================================
 //
@@ -60,6 +115,25 @@ struct RepStack {
 //                       budget for the 10% safety margin per SRCH-15).
 //   - rep_stack       : non-owning pointer to Engine::rep_stack_; alpha_beta
 //                       reads/writes for in-tree 3-fold detection.
+//
+// Plan 03-01 additions (D-01, D-03):
+//   - max_depth       : caller-set upper bound for iterative deepening; never
+//                       overwritten by search internals (Bug #1 fix — D-03).
+//   - tt              : non-owning pointer to Engine::tt_; replaces g_tt global
+//                       (D-01 g_tt migration; Plan 03-05 replaces TT body).
+//   - search_stack    : non-owning pointer to Engine::search_stack_; alpha_beta
+//                       writes triangular PV and killers through this pointer.
+//   - history         : non-owning pointer to Engine::history_[2][64][64];
+//                       persistent across search() calls (Bug #2 fix — D-03).
+//   - counter_moves   : non-owning pointer to Engine::counter_moves_[2][64][64];
+//                       wired here but consumed by Plan 03-02 (score_moves).
+//   - options         : non-owning pointer to Engine::options_; D-06 UCI toggles
+//                       (UseNullMove, UseLMR, etc.) wired in Task 2.
+//
+// PRESERVE CONTRACT: reset() MUST NOT clobber external_stop, soft_deadline_ms,
+// hard_deadline_ms, rep_stack, max_depth, tt, search_stack, history,
+// counter_moves, or options — they are wired by Engine::search per call and
+// MUST survive the reset() invocation that follows wiring.
 
 struct SearchInfo {
     // Time control
@@ -79,11 +153,21 @@ struct SearchInfo {
     // Thread count
     int num_threads = 1;
 
-    // --- V7 additions ---
+    // --- V7 additions (pre-C1 must-fixes) ---
     std::atomic<bool>* external_stop = nullptr;  // FOUND-04 — points at Engine::stop_flag_
     int soft_deadline_ms = 0;                    // SRCH-15 — TimeManager-set; 0 = unused
     int hard_deadline_ms = 0;                    // SRCH-15 — TimeManager-set; 0 = unused
     RepStack* rep_stack = nullptr;               // SRCH-14 — points at Engine::rep_stack_
+
+    // --- Plan 03-01 additions (D-01, D-03) ---
+    int max_depth = 0;                           // D-03 Bug#1 fix: caller's depth cap; never
+                                                 // overwritten by iterative_deepening internals
+    TT* tt = nullptr;                            // D-01: non-owning ptr to Engine::tt_
+                                                 //   (migrates g_tt global; Plan 03-05 replaces body)
+    SearchStack* search_stack = nullptr;         // D-03 Bug#2+#3: ptr to Engine::search_stack_
+    int (*history)[64][64] = nullptr;            // D-03 Bug#2: ptr to Engine::history_[2][64][64]
+    Move (*counter_moves)[64][64] = nullptr;     // Plan 03-02: ptr to Engine::counter_moves_[2][64][64]
+    const EngineOptions* options = nullptr;      // D-06: ptr to Engine::options_ (Task 2 wires)
 
     void reset() {
         nodes = 0;
@@ -91,7 +175,10 @@ struct SearchInfo {
         seldepth = 0;
         score = 0;
         best_move = MOVE_NONE;
-        // Do NOT clobber external_stop or rep_stack (preserve across reset).
+        // PRESERVE: do NOT clobber external_stop, soft_deadline_ms,
+        // hard_deadline_ms, rep_stack, max_depth, tt, search_stack,
+        // history, counter_moves, or options — they are wired by
+        // Engine::search per call and must survive across this reset.
         // Propagate external_stop into local `stopped` so a stop set BEFORE
         // search begins is respected from the first node poll.
         if (external_stop) stopped.store(external_stop->load(std::memory_order_relaxed));
@@ -154,8 +241,9 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
 
 // Alpha-beta (PVS) with pruning, repetition detection (SRCH-14), and
 // mate-TT correction (SRCH-13) at every store/probe.
+// Plan 03-01: pv parameter REMOVED — triangular PV lives on info.search_stack.
 int alpha_beta(Board& board, int depth, int alpha, int beta,
-               SearchInfo& info, int ply, std::vector<Move>& pv,
+               SearchInfo& info, int ply,
                bool do_null = true);
 
 // Quiescence search.
@@ -207,6 +295,9 @@ void init_lmr_table();
 //
 // MATE_SCORE comes from types.hpp (=29000). Anything within 256 of it is
 // treated as a mate score; the constant matches V6's mate-detection band.
+//
+// SHARED PATTERN 8 (PATTERNS.md): these wrappers belong on the SEARCH side,
+// NOT inside TT methods. The Plan 03-05 lockless TT rewrite MUST NOT move them.
 
 constexpr int MATE_IN_MAX_PLY = MATE_SCORE - 256;
 

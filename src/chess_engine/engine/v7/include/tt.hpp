@@ -71,9 +71,9 @@ private:
     size_t index(uint64_t hash) const { return hash % num_entries; }
 };
 
-// Global TT instance (legacy free-function access, mirrors V6).
-// Plan 03 uses the Engine::tt_ member instead of this global; this global is
-// retained for verbatim-fork parity and legacy callers.
-extern TT g_tt;
+// Plan 03-01 D-01: g_tt global removed. All search-side TT access goes through
+// SearchInfo::tt (non-owning pointer to Engine::tt_). This severs search.cpp's
+// dependency on the global so Plan 03-05's lockless TT rewrite is file-disjoint
+// from search.cpp. See PATTERNS.md Shared Pattern 4 for the pointer contract.
 
 } // namespace v7

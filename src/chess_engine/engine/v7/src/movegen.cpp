@@ -406,10 +406,18 @@ void generate_legal_moves(const Board& board, MoveList& moves) {
     }
 }
 
+// Plan 03-01 D-03: signature updated to use persistent Engine-owned state.
+// ply_killers: pointer to killers[ply][0..1] in SearchStack (Bug #2 fix).
+// history: non-owning pointer to Engine::history_[2][64][64].
+// counter_move_ptr: for Plan 03-02 counter-move scoring (received but not
+//   yet consumed — TODO Plan 03-02 will add counter-move bonus here).
 void score_moves(const Board& board, MoveList& moves, Move tt_move,
-                 const std::array<Move, 64>& killers,
-                 const std::array<std::array<int, 64>, 12>& history,
+                 const Move* ply_killers,
+                 const int (*history)[64][64],
+                 const Move* counter_move_ptr,
                  int* scores) {
+    Color stm = board.side_to_move;
+
     for (int i = 0; i < moves.count; ++i) {
         Move m = moves[i];
         int score = 0;
@@ -427,13 +435,25 @@ void score_moves(const Board& board, MoveList& moves, Move tt_move,
             } else if (move_type(m) == CASTLING) {
                 score = 50000;  // Castling is usually good
             } else {
-                // Quiet move - use history heuristic placeholder
-                // TODO: integrate actual history scores
-                int from = move_from(m);
-                int to = move_to(m);
-                Piece moved = board.piece_at(from);
-                if (moved != NO_PIECE) {
-                    // Center control bonus for quiet moves
+                // Quiet move — use killer heuristic + history score (D-03 Bug #2 fix).
+                // Killer moves: quiet moves that caused a beta-cutoff at this ply.
+                if (ply_killers != nullptr &&
+                    (m == ply_killers[0] || m == ply_killers[1])) {
+                    score = 80000;  // Below captures, above generic quiets
+                } else {
+                    // History heuristic: persistent across search() calls (D-03).
+                    int from = move_from(m);
+                    int to   = move_to(m);
+                    int hist_score = (history != nullptr)
+                        ? (*history)[stm][from][to]
+                        : 0;
+
+                    // TODO Plan 03-02: add counter-move bonus here when
+                    // counter_move_ptr is wired in score_moves callsite.
+                    // if (counter_move_ptr && m == *counter_move_ptr) hist_score += 10000;
+                    (void)counter_move_ptr;  // suppress unused-parameter warning until 03-02
+
+                    // Center control bonus for quiet moves (retained from prior impl)
                     int center_bonus = 0;
                     if ((to >= 27 && to <= 28) || (to >= 35 && to <= 36)) {
                         center_bonus = 20;  // d4, e4, d5, e5
@@ -441,7 +461,7 @@ void score_moves(const Board& board, MoveList& moves, Move tt_move,
                                (to >= 34 && to <= 37) || (to >= 42 && to <= 45)) {
                         center_bonus = 10;  // Extended center
                     }
-                    score = center_bonus;
+                    score = hist_score + center_bonus;
                 }
             }
         }

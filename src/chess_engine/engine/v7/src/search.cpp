@@ -6,6 +6,15 @@
 //                50-move TT cutoff guard at halfmove_clock >= 80
 //   - SRCH-15  : TimeManager::allocate + soft deadline gating ID iterations
 //
+// Plan 03-01 additions (D-01, D-03) — three Phase 1 perf bug fixes:
+//   - Bug #1: info.max_depth replaces the old info.depth upper-bound contract;
+//     iterative_deepening writes info.depth as per-iteration counter only.
+//   - Bug #2: per-call killers/history allocations removed; persistent state
+//     accessed via info.search_stack->killers[ply] and (*info.history)[...].
+//   - Bug #3: std::vector<Move> pv allocations in alpha_beta/iterative_deepening
+//     replaced with triangular array on SearchStack (info.search_stack->pv[ply]).
+//   - g_tt migration: all four g_tt callsites replaced with info.tt-> (D-01).
+//
 // V6 PARITY: PVS core, LMR, NMP, RFP, LMP, futility, SEE pruning, move
 // ordering — all inherited verbatim. The diff vs V6 is the patches above
 // plus the namespace rename v6 -> v7.
@@ -137,18 +146,24 @@ int quiescence(Board& board, int alpha, int beta, SearchInfo& info, int ply) {
 }
 
 // =============================================================================
-// ALPHA-BETA SEARCH (PVS) — V6 + SRCH-13 + SRCH-14 patches
+// ALPHA-BETA SEARCH (PVS) — V6 + SRCH-13 + SRCH-14 + Plan 03-01 Bug fixes
 // =============================================================================
+//
+// Plan 03-01 changes vs prior V7:
+//   - `pv` parameter REMOVED (Bug #3 fix) — triangular PV lives on
+//     info.search_stack->pv[ply][*] / pv_length[ply].
+//   - killers/history parameter REMOVED from inner scope (Bug #2 fix) —
+//     accessed via info.search_stack->killers[ply] and (*info.history)[side].
+//   - g_tt replaced with info.tt-> at all four callsites (D-01).
 
 int alpha_beta(Board& board, int depth, int alpha, int beta,
-               SearchInfo& info, int ply, std::vector<Move>& pv,
+               SearchInfo& info, int ply,
                bool do_null) {
 
     if (info.stopped || (info.nodes % 4096 == 0 && info.check_time())) {
         return 0;
     }
 
-    pv.clear();
     bool is_root = (ply == 0);
     bool in_check = board.is_in_check();
 
@@ -178,6 +193,12 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         }
     }
 
+    // D-03 Bug #3 fix: initialize triangular PV length at this ply.
+    // pv_length[ply] = 0 means "no best move yet at this ply".
+    if (info.search_stack && ply < MAX_PLY) {
+        info.search_stack->pv_length[ply] = ply;  // empty PV at entry
+    }
+
     // Check extension
     if (in_check) {
         depth++;
@@ -193,10 +214,11 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
 
     // -------------------------------------------------------------------------
     // TT probe (SRCH-13: score_from_tt; SRCH-14: 50-move guard)
+    // D-01: use info.tt-> instead of g_tt (g_tt migration).
     // -------------------------------------------------------------------------
     TTEntry tt_entry;
     Move tt_move = MOVE_NONE;
-    if (g_tt.probe(board.hash, tt_entry)) {
+    if (info.tt && info.tt->probe(board.hash, tt_entry)) {
         tt_move = tt_entry.best_move;
         // SRCH-14 — when near the 50-move boundary, still use the TT for move
         // ordering (tt_move above) but do NOT cut off on the cached score;
@@ -206,7 +228,11 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
             // SRCH-13 — convert stored mate-distance back into ply-relative score
             int tt_score = score_from_tt(static_cast<int>(tt_entry.score), ply);
             if (tt_entry.flag == TT_EXACT) {
-                pv.push_back(tt_move);
+                // D-03 Bug #3 fix: update triangular PV with TT move
+                if (info.search_stack && ply < MAX_PLY && tt_move != MOVE_NONE) {
+                    info.search_stack->pv[ply][ply] = tt_move;
+                    info.search_stack->pv_length[ply] = ply + 1;
+                }
                 return tt_score;
             } else if (tt_entry.flag == TT_ALPHA && tt_score <= alpha) {
                 return alpha;
@@ -238,10 +264,11 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
             board.ep_square = NO_SQUARE;
         }
 
-        std::vector<Move> null_pv;
+        // D-03 Bug #3 fix: null move uses child ply — no vector allocation needed.
+        // The child's pv is stored in search_stack->pv[ply+1] automatically.
         int reduction = NULL_MOVE_R + depth / 4;
         int null_score = -alpha_beta(board, depth - reduction - 1,
-                                     -beta, -beta + 1, info, ply + 1, null_pv, false);
+                                     -beta, -beta + 1, info, ply + 1, false);
 
         // Unmake null move
         board.side_to_move = us;
@@ -266,11 +293,30 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         return in_check ? -MATE_SCORE + ply : DRAW_SCORE;
     }
 
-    // Move ordering (TT move first, then by score)
-    std::array<Move, 64> killers = {};                  // Simplified (V6 parity)
-    std::array<std::array<int, 64>, 12> history = {};   // Simplified (V6 parity)
+    // -------------------------------------------------------------------------
+    // Move ordering (D-03 Bug #2 fix — persistent killers/history)
+    //
+    // ply_killers: pointer into SearchStack::killers[ply][0..1]
+    //   (nullptr when search_stack is not wired — graceful fallback)
+    // history_ptr: pointer to Engine::history_[2][64][64]
+    //   (nullptr when history is not wired — graceful fallback)
+    // counter_move_ptr: TODO Plan 03-02 will wire counter-move bonus here;
+    //   pointer passed now so the score_moves signature is final.
+    // -------------------------------------------------------------------------
+    const Move* ply_killers = (info.search_stack && ply < MAX_PLY)
+        ? info.search_stack->killers[ply]
+        : nullptr;
+
+    // history pointer: info.history is int (*)[64][64] pointing at history_[2][64][64].
+    // Callers access (*info.history)[side][from][to]. Pass as-is to score_moves.
+    const int (*history_ptr)[64][64] = info.history;
+
+    // counter_move_ptr: TODO Plan 03-02 will compute the counter-move for the
+    // current position and pass it here; for now pass nullptr.
+    const Move* counter_move_ptr = nullptr;
+
     int move_scores[256];
-    score_moves(board, moves, tt_move, killers, history, move_scores);
+    score_moves(board, moves, tt_move, ply_killers, history_ptr, counter_move_ptr, move_scores);
 
     std::array<MoveOrder, 256> ordered;
     for (int i = 0; i < moves.count; ++i) {
@@ -314,7 +360,8 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         // the push/pop bracket lives in this search function alone.
         if (info.rep_stack) info.rep_stack->push(board.hash);
 
-        std::vector<Move> child_pv;
+        // D-03 Bug #3 fix: child PV is stored in search_stack->pv[ply+1];
+        // no std::vector allocation needed.
         int score;
 
         bool do_lmr = !in_check && i >= LMR_FULL_DEPTH_MOVES &&
@@ -324,23 +371,23 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         if (do_lmr) {
             int reduction = LMR_TABLE[std::min(depth, 63)][std::min(i, 63)];
             score = -alpha_beta(board, depth - 1 - reduction, -alpha - 1, -alpha,
-                                info, ply + 1, child_pv, true);
+                                info, ply + 1, true);
 
             if (score > alpha) {
                 score = -alpha_beta(board, depth - 1, -beta, -alpha,
-                                    info, ply + 1, child_pv, true);
+                                    info, ply + 1, true);
             }
         } else if (i > 0) {
             // PVS
             score = -alpha_beta(board, depth - 1, -alpha - 1, -alpha,
-                                info, ply + 1, child_pv, true);
+                                info, ply + 1, true);
             if (score > alpha && score < beta) {
                 score = -alpha_beta(board, depth - 1, -beta, -alpha,
-                                    info, ply + 1, child_pv, true);
+                                    info, ply + 1, true);
             }
         } else {
             score = -alpha_beta(board, depth - 1, -beta, -alpha,
-                                info, ply + 1, child_pv, true);
+                                info, ply + 1, true);
         }
 
         if (info.rep_stack) info.rep_stack->pop();
@@ -356,30 +403,74 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
                 alpha = score;
                 tt_flag = TT_EXACT;
 
-                pv.clear();
-                pv.push_back(m);
-                pv.insert(pv.end(), child_pv.begin(), child_pv.end());
+                // D-03 Bug #3 fix: update triangular PV at this ply.
+                // pv[ply][ply] = best move, then copy child's PV tail.
+                if (info.search_stack && ply < MAX_PLY) {
+                    SearchStack& ss = *info.search_stack;
+                    ss.pv[ply][ply] = m;
+                    int child_len = (ply + 1 < MAX_PLY) ? ss.pv_length[ply + 1] : ply + 1;
+                    for (int k = ply + 1; k < child_len && k < MAX_PLY; ++k) {
+                        ss.pv[ply][k] = ss.pv[ply + 1][k];
+                    }
+                    ss.pv_length[ply] = child_len;
+                }
 
                 if (score >= beta) {
                     tt_flag = TT_BETA;
-                    // SRCH-13 — store mate-distance-corrected score
-                    g_tt.store(board.hash, best_move,
-                               score_to_tt(best_score, ply), depth, tt_flag);
+
+                    // D-03 Bug #2 fix: update persistent killers at this ply.
+                    // Killers are quiet moves that cause beta cutoffs.
+                    if (captured == NO_PIECE && info.search_stack && ply < MAX_PLY) {
+                        Move* killers = info.search_stack->killers[ply];
+                        if (killers[0] != m) {
+                            killers[1] = killers[0];
+                            killers[0] = m;
+                        }
+                    }
+
+                    // D-03 Bug #2 fix: update persistent history table.
+                    // Increment history[side][from][to] for beta-cutoff quiets.
+                    if (captured == NO_PIECE && info.history) {
+                        Color stm = Color(1 - board.side_to_move);  // side that moved
+                        int from = move_from(m);
+                        int to   = move_to(m);
+                        (*info.history)[stm][from][to] += depth * depth;  // depth-squared bonus
+                    }
+
+                    // SRCH-13 — store mate-distance-corrected score.
+                    // D-01: use info.tt-> (not g_tt).
+                    if (info.tt) {
+                        info.tt->store(board.hash, best_move,
+                                       score_to_tt(best_score, ply), depth, tt_flag);
+                    }
                     return beta;
                 }
             }
         }
     }
 
-    // SRCH-13 — store mate-distance-corrected score
-    g_tt.store(board.hash, best_move,
-               score_to_tt(best_score, ply), depth, tt_flag);
+    // SRCH-13 — store mate-distance-corrected score.
+    // D-01: use info.tt-> (not g_tt).
+    if (info.tt) {
+        info.tt->store(board.hash, best_move,
+                       score_to_tt(best_score, ply), depth, tt_flag);
+    }
     return best_score;
 }
 
 // =============================================================================
-// ITERATIVE DEEPENING — V6 + SRCH-01 + SRCH-02 + SRCH-15 patches
+// ITERATIVE DEEPENING — V6 + SRCH-01 + SRCH-02 + SRCH-15 + Bug #1 fix
 // =============================================================================
+//
+// Plan 03-01 Bug #1 fix (D-03):
+//   - max_depth now reads info.max_depth (new field) instead of info.depth.
+//   - info.depth = depth inside the loop is the per-iteration counter only;
+//     it no longer overwrites the caller's depth cap because that cap is in
+//     the separate info.max_depth field.
+//
+// Plan 03-01 Bug #3 fix (D-03):
+//   - std::vector<Move> pv REMOVED from this function.
+//   - PV is read from info.search_stack->pv[0][*] at each completed depth.
 
 SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbose) {
     SearchResultFull result;
@@ -388,15 +479,20 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
     result.depth = 0;
     result.nodes = 0;
 
-    std::vector<Move> pv;
     int alpha = -INFINITY_SCORE;
     int beta = INFINITY_SCORE;
 
-    int max_depth = (info.depth > 0) ? std::min(info.depth, 64) : 64;
+    // D-03 Bug #1 fix: read info.max_depth (set by Engine::search) as the cap.
+    // The old code read info.depth which was silently overwritten by the loop body.
+    int max_depth = (info.max_depth > 0) ? std::min(info.max_depth, MAX_PLY - 1) : MAX_PLY - 1;
 
     for (int depth = 1; depth <= max_depth && !info.stopped; ++depth) {
-        info.depth = depth;
-        pv.clear();
+        info.depth = depth;  // per-iteration counter (safe now — cap is in max_depth)
+
+        // D-03 Bug #3 fix: reset PV length at root before each depth iteration.
+        if (info.search_stack) {
+            info.search_stack->pv_length[0] = 0;
+        }
 
         // Aspiration windows (V6 — entered at depth 4+)
         if (depth >= 4) {
@@ -407,7 +503,7 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
             beta  = INFINITY_SCORE;
         }
 
-        int score = alpha_beta(board, depth, alpha, beta, info, 0, pv, true);
+        int score = alpha_beta(board, depth, alpha, beta, info, 0, true);
 
         // -------------------------------------------------------------------
         // SRCH-02 — Bounded aspiration re-search.
@@ -430,7 +526,7 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
                 else                beta  += delta;
                 ++rewidens;
             }
-            score = alpha_beta(board, depth, alpha, beta, info, 0, pv, true);
+            score = alpha_beta(board, depth, alpha, beta, info, 0, true);
             if (info.stopped) break;
             // If we've fallen back to the full window already, the next
             // alpha_beta result is unconditionally usable — exit the loop.
@@ -444,9 +540,19 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
         result.score = score;
         result.depth = depth;
         result.nodes = info.nodes;
-        result.pv = pv;
-        if (!pv.empty()) {
-            result.best_move = pv[0];
+
+        // D-03 Bug #3 fix: extract PV from triangular array instead of vector.
+        result.pv.clear();
+        if (info.search_stack) {
+            SearchStack& ss = *info.search_stack;
+            int pv_len = ss.pv_length[0];
+            for (int k = 0; k < pv_len && k < MAX_PLY; ++k) {
+                result.pv.push_back(ss.pv[0][k]);
+            }
+        }
+
+        if (!result.pv.empty()) {
+            result.best_move = result.pv[0];
         }
 
         if (verbose) {
@@ -460,7 +566,7 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
                       << " nps " << nps
                       << " time " << elapsed
                       << " pv";
-            for (Move m : pv) {
+            for (Move m : result.pv) {
                 std::cout << " " << move_to_string(m);
             }
             std::cout << std::endl;
@@ -487,13 +593,23 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
 // iterative_deepening directly, but the free function is retained for V6
 // API parity)
 // =============================================================================
+//
+// D-01 note: this free-function path does NOT have a wired info.tt pointer,
+// so it cannot call info.tt->new_search(). Use Engine::search for the full
+// production path. This stub is retained for legacy tests only.
 
 SearchResultFull search(Board& board, int time_limit_ms, bool verbose) {
-    g_tt.new_search();
+    // D-01: free-function path has no Engine::tt_ to wire; create a local TT
+    // for legacy callers. This path is only used by legacy free-function tests;
+    // production use goes through Engine::search which wires info.tt = &tt_.
+    static TT legacy_tt(16);  // small local TT for legacy callers
+    legacy_tt.new_search();   // D-01: call via pointer (not g_tt)
 
     SearchInfo info;
+    info.tt = &legacy_tt;    // D-01: wire for this path
     info.reset();
     info.time_limit_ms = time_limit_ms;
+    info.max_depth = MAX_PLY - 1;  // D-03 Bug #1: set max_depth for free-function path
 
     return iterative_deepening(board, info, verbose);
 }

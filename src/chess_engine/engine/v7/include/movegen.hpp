@@ -99,10 +99,16 @@ struct MoveOrder {
     }
 };
 
-// Score moves for ordering (stores scores in the output array)
+// Score moves for ordering (stores scores in the output array).
+// Plan 03-01 D-03: killers and history are now persistent Engine-owned state
+// (Bug #2 fix). ply_killers points to killers[ply][2] in SearchStack;
+// history is the 3-D Engine::history_[2][64][64] pointer (non-owning).
+// counter_move_ptr passed for future Plan 03-02 counter-move scoring
+// (currently received but not yet scored — see TODO comment in movegen.cpp).
 void score_moves(const Board& board, MoveList& moves, Move tt_move,
-                 const std::array<Move, 64>& killers,
-                 const std::array<std::array<int, 64>, 12>& history,
+                 const Move* ply_killers,           // killers[ply][0..1]
+                 const int (*history)[64][64],      // history[2][64][64] — side/from/to
+                 const Move* counter_move_ptr,      // TODO Plan 03-02: counter-move score
                  int* scores);
 
 } // namespace v7

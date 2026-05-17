@@ -8,11 +8,9 @@
 
 namespace v7 {
 
-// Global TT instance (64MB default). V6 named both the class and the global
-// `TT` (class TT vs. instance TT was disambiguated by context); V7 renames
-// the global to `g_tt` so the class can be named `TT` to match the plan's
-// `Engine::tt_` member declaration. Behavior identical to V6.
-TT g_tt(64);
+// Plan 03-01 D-01: g_tt global removed. All TT access is through the
+// Engine::tt_ member via SearchInfo::tt non-owning pointer, severing
+// search.cpp's dependency on this global before Plan 03-05's lockless rewrite.
 
 TT::TT(size_t size_mb) {
     size_t size_bytes = size_mb * 1024 * 1024;
