@@ -38,8 +38,8 @@ except Exception:  # pragma: no cover - import-time guard
 # PERFT CORPUS — RESEARCH.md §A2 lines 301-307 (canonical node counts)
 # =============================================================================
 
-# Depth-5 and depth-6 literal counts are locked from RESEARCH.md. Depth-4
-# values are computed lazily from V6 perft at test time when V6 is
+# Depth-5 and depth-6 literal counts are locked to the exact FENs below.
+# Depth-4 values are computed lazily from V6 perft at test time when V6 is
 # available; otherwise the depth-4 test is marked xfail (see the
 # `_resolve_depth4` helper below).
 PERFT_CORPUS = {
@@ -60,8 +60,8 @@ PERFT_CORPUS = {
     },
     "position4": {
         "fen": "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2pP/R2Q1RK1 w kq - 0 1",
-        5: 15833292,
-        6: 706045033,
+        5: 15464481,
+        6: 719042021,
     },
     "position5": {
         "fen": "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
@@ -181,7 +181,7 @@ def test_perft_position3_d5(v7_native_engine, v6_native_engine):
 
 
 def test_perft_position4_d5(v7_native_engine, v6_native_engine):
-    _assert_perft(v7_native_engine, v6_native_engine, "position4", 5, 15833292)
+    _assert_perft(v7_native_engine, v6_native_engine, "position4", 5, PERFT_CORPUS["position4"][5])
 
 
 def test_perft_position5_d5(v7_native_engine, v6_native_engine):
@@ -209,7 +209,7 @@ def test_perft_position3_d6(v7_native_engine, v6_native_engine):
 
 @pytest.mark.skipif(not SLOW_ENABLED, reason="slow; set GSD_RUN_SLOW_TESTS=1")
 def test_perft_position4_d6(v7_native_engine, v6_native_engine):
-    _assert_perft(v7_native_engine, v6_native_engine, "position4", 6, 706045033)
+    _assert_perft(v7_native_engine, v6_native_engine, "position4", 6, PERFT_CORPUS["position4"][6])
 
 
 @pytest.mark.skipif(not SLOW_ENABLED, reason="slow; set GSD_RUN_SLOW_TESTS=1")

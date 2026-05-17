@@ -38,6 +38,7 @@ struct SearchResult {
     int score = 0;
     int depth = 0;
     uint64_t nodes = 0;
+    int time_ms = 0;
     int nps = 0;
 };
 

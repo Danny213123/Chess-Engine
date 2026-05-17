@@ -37,6 +37,7 @@ PYBIND11_MODULE(v7_engine, m) {
         .def_readonly("score",     &v7::SearchResult::score)
         .def_readonly("depth",     &v7::SearchResult::depth)
         .def_readonly("nodes",     &v7::SearchResult::nodes)
+        .def_readonly("time_ms",   &v7::SearchResult::time_ms)
         .def_readonly("nps",       &v7::SearchResult::nps);
 
     py::class_<v7::Engine>(m, "Engine")
@@ -47,7 +48,7 @@ PYBIND11_MODULE(v7_engine, m) {
         .def("new_game",        &v7::Engine::new_game)
         .def("search",          &v7::Engine::search,
              py::arg("fen"),
-             py::arg("depth")   = 6,
+             py::arg("depth")   = 64,
              py::arg("time_ms") = 5000,
              py::call_guard<py::gil_scoped_release>())   // FOUND-05 + Pitfall #11
         // stop() intentionally has NO call_guard — single atomic write,

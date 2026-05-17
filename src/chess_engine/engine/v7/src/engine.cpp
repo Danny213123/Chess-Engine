@@ -123,6 +123,7 @@ SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
     r.score     = full.score;
     r.depth     = full.depth;
     r.nodes     = full.nodes;
+    r.time_ms   = full.time_ms;
     r.nps       = full.nps();
     return r;
 }

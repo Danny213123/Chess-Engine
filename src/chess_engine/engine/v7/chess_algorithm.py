@@ -144,7 +144,7 @@ else:
 
 # Default parameters
 DEFAULT_TIME_LIMIT = 5000  # 5 seconds in ms
-DEFAULT_DEPTH = 6  # D-04: Phase 1 smoke milestone uses fixed depth 6
+DEFAULT_DEPTH = 64  # max depth; the native time manager controls normal play
 # TODO(future-plan): re-enable OpeningBook for V7 (V6 uses chess_engine.engine.v3.chess_opening_book.OpeningBook).
 # Phase 1 declines the book per research §Pattern note — V7 plays from the
 # starting position with no book to keep the smoke test scope minimal.
@@ -257,6 +257,7 @@ def find_best_move(game_state, valid_moves, engine, search_info=None):
         depth = getattr(result, "depth", 0)
         nodes = getattr(result, "nodes", 0)
         nps = getattr(result, "nps", 0)
+        time_ms = getattr(result, "time_ms", 0)
         best_move = getattr(result, "best_move", 0)
         # plan 01: best_move is int (MOVE_NONE=0); plan 02 replaces with v7::Move
         # plan 03 emits a UCI string via SearchResult.pv or via a binding helper.
@@ -265,11 +266,17 @@ def find_best_move(game_state, valid_moves, engine, search_info=None):
             move_str = best_move
         else:
             move_str = _native_move_to_uci(best_move) or getattr(result, "pv", "") or ""
+    else:
+        time_ms = 0
+
+    elapsed_seconds = max(float(time_ms) / 1000.0, 0.0)
+    if not nps and nodes and elapsed_seconds > 0:
+        nps = int(nodes / elapsed_seconds)
 
     stats = {
         "depth": depth,
         "nodes": nodes,
-        "time": DEFAULT_TIME_LIMIT / 1000.0,
+        "time": elapsed_seconds,
         "score": score,
         "nps": nps,
         "pv": move_str,
