@@ -34,7 +34,9 @@ namespace v7 {
 //   EVAL-11 tapered combine
 
 // Full evaluation — returns centipawns from side-to-move's perspective.
-int evaluate(const Board& board);
+// fortress_enabled: value of options.UseFortressEval (D-11); defaults false
+// so all call-sites that don't pass the parameter get the default-OFF behavior.
+int evaluate(const Board& board, bool fortress_enabled = false);
 
 // Static exchange estimate used by quiescence SEE pruning.
 int see(const Board& board, Move m);
@@ -42,5 +44,10 @@ int see(const Board& board, Move m);
 // Binding entry: parses a FEN, evaluates, returns the score.
 // Python tests + future Phase 4 tuner harness use this.
 int evaluate_entry(const std::string& fen);
+
+// compute_phase: return the 0..256 Stockfish-style phase for a given board.
+// Used by tests/test_v7_phase_blend.py to verify monotonicity.
+// Exposed as a pybind11 binding via python_bindings.cpp.
+int compute_phase(const Board& board);
 
 } // namespace v7

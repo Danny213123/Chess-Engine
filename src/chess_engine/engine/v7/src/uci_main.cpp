@@ -123,6 +123,9 @@ int main() {
                       // Order: alphabetical for stable diff inspection.
                       // Plans 03-03 (3 more) and 03-04 (UseFortressEval) extend this.
                       << "option name UseCheckExt type check default true\n"
+                      // Plan 03-04: UseFortressEval default false per D-11
+                      // (separate validation gauntlet decides if it ships ON)
+                      << "option name UseFortressEval type check default false\n"
                       << "option name UseFutility type check default true\n"
                       << "option name UseIIR type check default true\n"
                       << "option name UseLMR type check default true\n"

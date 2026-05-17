@@ -82,8 +82,9 @@ int quiescence(Board& board, int alpha, int beta, SearchInfo& info, int ply) {
 
     info.seldepth = std::max(info.seldepth, ply);
 
-    // Stand pat
-    int stand_pat = evaluate(board);
+    // Stand pat (Plan 03-04: pass UseFortressEval when options available)
+    bool fortress_on = (info.options && info.options->UseFortressEval);
+    int stand_pat = evaluate(board, fortress_on);
 
     if (stand_pat >= beta) {
         return beta;
@@ -298,7 +299,9 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         depth -= 1;  // SRCH-11: reduce depth at nodes with no TT move guidance
     }
 
-    int static_eval = evaluate(board);
+    // Plan 03-04: pass UseFortressEval through to evaluate() (D-11)
+    bool fortress_flag = (info.options && info.options->UseFortressEval);
+    int static_eval = evaluate(board, fortress_flag);
 
     // -------------------------------------------------------------------------
     // SRCH-05 (Plan 03-02) — Reverse Futility Pruning (RFP).

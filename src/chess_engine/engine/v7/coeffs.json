@@ -164,5 +164,13 @@
   "threat_rook_by_minor": -20,
   "threat_queen_by_rook": -30,
   "tempo_mg": 10,
-  "tempo_eg": 0
+  "tempo_eg": 0,
+
+  "_endgame_meta": "ENDG-01..05 coefficients (Plan 03-04 D-12). All endgame weights flow through gen_coeffs.py — no hardcoded constexpr in endgame.cpp. Phase blend constants (endgame_limit, midgame_limit) implement Stockfish-style 0..256 continuous tapered evaluation (RESEARCH.md Pitfall 6). Opposition, wrong-bishop-rp-scale, and fortress values are initial hand-tuned values to be refined in Phase 4 Texel tuning against the Zurichess quiet-labeled dataset.",
+
+  "endgame_limit": 0,
+  "fortress_score": 0,
+  "midgame_limit": 6196,
+  "opposition_value": 15,
+  "wrong_bishop_rp_scale": 0
 }

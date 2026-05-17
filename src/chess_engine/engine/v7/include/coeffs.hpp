@@ -93,4 +93,24 @@ extern const int passed_pawn_by_rank[8];
 // --- King attack table (indexed by accumulated attack units, 0..99) ---
 extern const int king_attack_table[100];
 
+// --- Endgame coefficients (Plan 03-04 D-12) ---
+// Phase blend: Stockfish-style 0..256 continuous tapered evaluation.
+//   npm = std::clamp(non_pawn_material(WHITE) + non_pawn_material(BLACK),
+//                    endgame_limit, midgame_limit)
+//   phase = ((npm - endgame_limit) * 256) / (midgame_limit - endgame_limit)
+// endgame_limit: npm at full endgame (0 = bare kings)
+// midgame_limit: npm at full midgame (sum of all non-pawn pieces at start, ~6196)
+//   Canonical: 2 * (325 + 325 + 500 + 975) = 2 * 2125 + 2*975 = 4250 + 1946 = 6196
+extern const int endgame_limit;
+extern const int midgame_limit;
+
+// ENDG-02: opposition bonus for the side with direct opposition in K vs K+P.
+extern const int opposition_value;
+
+// ENDG-03: scale factor for wrong-bishop + rook-pawn draw (0 = full draw, 256 = no scale).
+extern const int wrong_bishop_rp_scale;
+
+// ENDG-05: score returned for fortress positions when UseFortressEval is enabled.
+extern const int fortress_score;
+
 } // namespace v7::coeffs

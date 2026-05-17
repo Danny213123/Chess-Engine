@@ -24,6 +24,7 @@
 
 #include "engine.hpp"
 #include "eval.hpp"
+#include "endgame.hpp"   // Plan 03-04: kpk_is_win + compute_phase bindings
 
 namespace py = pybind11;
 
@@ -86,6 +87,31 @@ PYBIND11_MODULE(v7_engine, m) {
     m.def("evaluate", &v7::evaluate_entry,
           py::arg("fen"),
           py::call_guard<py::gil_scoped_release>());
+
+    // Plan 03-04: compute_phase binding for test_v7_phase_blend.py monotonicity test.
+    // Exposes the 0..256 Stockfish-style phase value for a given FEN.
+    m.def("compute_phase", [](const std::string& fen) -> int {
+        v7::init_magics();
+        v7::Board b;
+        b.from_fen(fen);
+        return v7::compute_phase(b);
+    },
+    py::arg("fen"),
+    py::call_guard<py::gil_scoped_release>());
+
+    // Plan 03-04: kpk_is_win binding for test_v7_kpk_bitbase.py cross-check.
+    // stm: 0 = WHITE (pawn side to move), 1 = BLACK.
+    // wksq, bksq, psq: 0..63 (a1=0, h8=63).
+    m.def("kpk_is_win", [](int stm, int wksq, int bksq, int psq) -> bool {
+        return v7::kpk_is_win(
+            static_cast<v7::Color>(stm),
+            static_cast<v7::Square>(wksq),
+            static_cast<v7::Square>(bksq),
+            static_cast<v7::Square>(psq)
+        );
+    },
+    py::arg("stm"), py::arg("wksq"), py::arg("bksq"), py::arg("psq"),
+    py::call_guard<py::gil_scoped_release>());
 
     m.def("backend_status", []() {
         return std::string("cpu");

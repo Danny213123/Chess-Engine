@@ -8,9 +8,14 @@
 //
 // EVAL-10 contract: no hardcoded weight constants live in this file.
 // Numeric literals appearing here are exclusively:
-//   - small loop indices and rank/file arithmetic (0..7, 8, 56, 24)
-//   - the phase cap (24) and tapered-combine divisor (24) per EVAL-11
+//   - small loop indices and rank/file arithmetic (0..7, 8, 56)
 //   - the piece-count threshold for the bishop-pair bonus (2)
+//   - the divisor 256 for the Stockfish 0..256 tapered combine (ENDG-04)
+//
+// Plan 03-04 ENDG-04: phase accumulator replaced with Stockfish-style
+// 0..256 continuous blend based on non_pawn_material() (replacing the old
+// 0-24 Pesto integer scale at eval.cpp:424 `/ 24`). endgame_eval() call
+// inserted between the tempo block and the tapered combine.
 //
 // Phase 4 Texel tuning mutates coeffs.json; the CMake custom command
 // regenerates coeffs.cpp on every build; no edits to this file required.
@@ -19,6 +24,7 @@
 // see TODO(phase-4) comment below in the pawn structure section.
 
 #include "eval.hpp"
+#include "endgame.hpp"   // Plan 03-04: endgame_eval() hook + ENDG-01..05
 #include "coeffs.hpp"
 #include "board.hpp"
 #include "movegen.hpp"
@@ -150,15 +156,19 @@ constexpr int ATTACK_UNITS[6] = {
 
 } // namespace
 
-int evaluate(const Board& board) {
-    // ---- Phase (EVAL-03) -------------------------------------------------
-    // Sum of phase_weights for non-king pieces, capped at 24 (Pesto total).
-    int phase = 0;
-    for (int p = KNIGHT; p <= QUEEN; ++p) {
-        phase += popcount(board.pieces[p]) * phase_weight(static_cast<Piece>(p));
-    }
-    phase += popcount(board.pieces[PAWN]) * phase_weight(PAWN);  // 0 in Pesto
-    if (phase > 24) phase = 24;
+int evaluate(const Board& board, bool fortress_enabled) {
+    // ---- Phase (ENDG-04 / Plan 03-04) -----------------------------------
+    // Stockfish-style 0..256 continuous phase blend using non_pawn_material().
+    // Replaces the old 0-24 Pesto integer accumulator.
+    //
+    // npm = std::clamp(non_pawn_material(WHITE) + non_pawn_material(BLACK),
+    //                  endgame_limit, midgame_limit)
+    // phase = ((npm - endgame_limit) * 256) / (midgame_limit - endgame_limit)
+    // phase = 256 at full midgame (all pieces), 0 at bare kings
+    int npm = board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK);
+    npm = std::clamp(npm, v7::coeffs::endgame_limit, v7::coeffs::midgame_limit);
+    int phase = ((npm - v7::coeffs::endgame_limit) * 256) /
+                (v7::coeffs::midgame_limit - v7::coeffs::endgame_limit);
 
     // ---- Material + PSTs (EVAL-01, EVAL-02) ------------------------------
     int mg_score = 0;
@@ -420,10 +430,18 @@ int evaluate(const Board& board) {
         eg_score -= v7::coeffs::tempo_eg;
     }
 
-    // ---- EVAL-11 tapered combine -----------------------------------------
-    int final_score = (mg_score * phase + eg_score * (24 - phase)) / 24;
+    // ---- Endgame eval hook (Plan 03-04 ENDG-01..05) ---------------------
+    // Called between the tempo block and the tapered combine.
+    // May adjust mg_score/eg_score in-place or short-circuit for known
+    // draw/win positions (KPK, wrong-bishop+RP, fortress).
+    endgame_eval(board, mg_score, eg_score, phase, fortress_enabled);
 
-    // Return from STM perspective
+    // ---- ENDG-04 Stockfish-style 0..256 tapered combine -----------------
+    // Replaces old `(mg * phase + eg * (24 - phase)) / 24` formula.
+    // phase = 256 at full midgame; phase = 0 at bare kings.
+    int final_score = (mg_score * phase + eg_score * (256 - phase)) / 256;
+
+    // Return from STM perspective (unchanged from EVAL-11)
     return (board.side_to_move == WHITE) ? final_score : -final_score;
 }
 
@@ -457,6 +475,15 @@ int evaluate_entry(const std::string& fen) {
     Board b;
     b.from_fen(fen);
     return evaluate(b);
+}
+
+int compute_phase(const Board& board) {
+    // Expose the 0..256 Stockfish-style phase for testing (ENDG-04 / test_v7_phase_blend.py).
+    int npm = board.non_pawn_material(WHITE) + board.non_pawn_material(BLACK);
+    npm = std::clamp(npm, v7::coeffs::endgame_limit, v7::coeffs::midgame_limit);
+    int phase = ((npm - v7::coeffs::endgame_limit) * 256) /
+                (v7::coeffs::midgame_limit - v7::coeffs::endgame_limit);
+    return phase;
 }
 
 } // namespace v7
