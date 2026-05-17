@@ -448,10 +448,14 @@ void score_moves(const Board& board, MoveList& moves, Move tt_move,
                         ? (*history)[stm][from][to]
                         : 0;
 
-                    // TODO Plan 03-02: add counter-move bonus here when
-                    // counter_move_ptr is wired in score_moves callsite.
-                    // if (counter_move_ptr && m == *counter_move_ptr) hist_score += 10000;
-                    (void)counter_move_ptr;  // suppress unused-parameter warning until 03-02
+                    // SRCH-06 (Plan 03-02): counter-move bonus.
+                    // When this move is the stored counter-move for the previous
+                    // move's from/to/side context, add a bonus below killers but
+                    // above generic history. counter_move_ptr points directly at
+                    // the stored counter-move for this ply.
+                    if (counter_move_ptr != nullptr && m == *counter_move_ptr) {
+                        hist_score += 10000;  // Counter-move bonus: below killer (80000), above history
+                    }
 
                     // Center control bonus for quiet moves (retained from prior impl)
                     int center_bonus = 0;
