@@ -55,9 +55,9 @@
   4. Result aggregator reports time forfeits in a separate column from losses; any forfeit triggers a manual-investigation flag (not silently counted as a loss)
   5. The build fails with a clear error message if V7 NPS on the bench position drops more than 20% vs V6 NPS on the same hardware
 **Plans**: 6 plans
-- [ ] 02-01-PLAN.md — Wave 1: V7 UCI extensions — setoption + wtime/btime parsing (GAUNT-02)
-- [ ] 02-02-PLAN.md — Wave 1: V6 UCI binary (v6_uci CMake target + uci_main.cpp + tests) (GAUNT-02)
-- [ ] 02-03-PLAN.md — Wave 1: fetch_fastchess.py + 8moves_v3.pgn vendoring (or fallback manifest) + .gitignore + human checkpoint for SHA256 verification (GAUNT-01, GAUNT-05)
+- [x] 02-01-PLAN.md — Wave 1: V7 UCI extensions — setoption + wtime/btime parsing (GAUNT-02)
+- [x] 02-02-PLAN.md — Wave 1: V6 UCI binary (v6_uci CMake target + uci_main.cpp + tests) (GAUNT-02)
+- [x] 02-03-PLAN.md — Wave 1: fetch_fastchess.py + 8moves_v3.pgn vendoring (or fallback manifest) + .gitignore + human checkpoint for SHA256 verification (GAUNT-01, GAUNT-05)
 - [ ] 02-04a-PLAN.md — Wave 2: tools/gauntlet_core.py pure functions (command builder, stdout/PGN parsers, sanity-verdict) + unit tests (GAUNT-03, GAUNT-06, GAUNT-07)
 - [ ] 02-04b-PLAN.md — Wave 2: tools/gauntlet.py I/O wrapper (subprocess runner, summary.json writer, run/sanity subcommands, D-09 hard deferral) + I/O tests (GAUNT-03, GAUNT-06, GAUNT-07)
 - [ ] 02-05-PLAN.md — Wave 3: NPS regression sentinel + V6-vs-V6 sanity probe checkpoint with investigation_required gate (GAUNT-04, GAUNT-08)
@@ -111,7 +111,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skeleton + Smoke | 0/6 | Planned | - |
-| 2. Gauntlet Harness Early | 0/6 | Planned | - |
+| 2. Gauntlet Harness Early | 3/6 | In Progress|  |
 | 3. Lockless TT + Search Refinements + Endgame | 0/? | Not started | - |
 | 4. Lazy SMP + Texel Tuning | 0/? | Not started | - |
 | 5. Final Gauntlet + Ship | 0/? | Not started | - |
