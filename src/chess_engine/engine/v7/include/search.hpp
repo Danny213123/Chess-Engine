@@ -100,6 +100,15 @@ struct SearchStack {
     Move killers[MAX_PLY][2];        // Killer heuristic (D-03, Bug #2 fix)
     Move excluded_move[MAX_PLY];     // Singular extension exclusion (Plan 03-03)
     // excluded_move = {} zero-init is safe because MOVE_NONE == 0 (types.hpp)
+
+    // SRCH-12 (Plan 03-02) — recapture extension tracking.
+    // prev_capture_sq[ply] records the destination square of the previous move
+    // IF that move was a capture; NO_SQUARE otherwise. When the current move
+    // captures on the same square (recapture), depth is extended by +1.
+    // This catches tactical exchanges that deserve extra search resolution
+    // without over-extending on unrelated captures.
+    // Reference: RESEARCH.md SRCH-12.
+    Square prev_capture_sq[MAX_PLY]; // = NO_SQUARE when previous move was non-capture
 };
 
 // =============================================================================
