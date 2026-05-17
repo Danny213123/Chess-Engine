@@ -695,33 +695,33 @@ if __name__ == "__main__":
 
 **Recommendation:** Before Plan 03-05 (TT) or Plan 03-03 (singular/multi-cut/probcut) execution, the implementer should `git clone` or fetch current Stockfish/Ethereal source and verify A2, A5, A8 against the live implementation. The training-time formulas are very likely correct, but "very likely" is not the right bar for the Phase 4 hard-gate.
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Should D1 (Plan 03-05 TT) run in parallel with D2 (Plans 03-02/03-03 search) or strictly sequentially?**
    - What we know: CONTEXT lists D1 as file-disjoint from D2/D3 (`tt.cpp` vs `search.cpp`).
    - What's unclear: D2 plans `#include "tt.hpp"` and use the probe/store API. CONTEXT D-09 says "TT entry packing inherits V6's 64-bit layout verbatim... No new fields." If Plan 03-05 preserves the public API (`probe(hash, entry) -> bool`, `store(hash, move, score, depth, flag)`), D2 plans never need to know about the lockless rewrite. **But** the `g_tt` global vs `Engine::tt_` member migration is a callsite change — search.cpp:199, 366, 375 will need to switch from `g_tt.probe/store` to a member access.
-   - Recommendation: Planner should treat the `g_tt` → `Engine::tt_` migration as a pre-D1 mechanical change inside Plan 03-01 (the scaffold plan). After 03-01 merges, both 03-02/03-03 (calling `engine.tt_`) and 03-05 (rewriting `tt.cpp` internals) can proceed in parallel.
+   - RESOLVED: Planner should treat the `g_tt` → `Engine::tt_` migration as a pre-D1 mechanical change inside Plan 03-01 (the scaffold plan). After 03-01 merges, both 03-02/03-03 (calling `engine.tt_`) and 03-05 (rewriting `tt.cpp` internals) can proceed in parallel.
 
 2. **Should `endgame.cpp` be a new file or a section appended to `eval.cpp`?**
    - What we know: CONTEXT D-04/D-12 don't specify; the existing `eval.cpp` is already 425+ lines.
-   - Recommendation: Make it a new `endgame.cpp` + `endgame.hpp` — clean separation for the KPK probe + opposition + wrong-bishop + fortress block. `eval.cpp` calls `endgame_eval(board, mg_score, eg_score, phase)` as a final pass. Easier code review, no merge conflict with Plan 04 Texel work (TUNE-* modifies `coeffs.json` but not `eval.cpp` structure).
+   - RESOLVED: Make it a new `endgame.cpp` + `endgame.hpp` — clean separation for the KPK probe + opposition + wrong-bishop + fortress block. `eval.cpp` calls `endgame_eval(board, mg_score, eg_score, phase)` as a final pass. Easier code review, no merge conflict with Plan 04 Texel work (TUNE-* modifies `coeffs.json` but not `eval.cpp` structure).
 
 3. **What's the canonical baseline gauntlet directory naming?**
    - What we know: CONTEXT D-02 says `.planning/gauntlets/baseline/summary.json` "(or a clearly-named directory)."
-   - Recommendation: Use `.planning/gauntlets/baseline-phase3/summary.json` so future phases can have their own baselines without naming collision. Phase 5 will want its own `baseline-ship/`. Document the chosen path in Plan 03-01's acceptance.
+   - RESOLVED: Use `.planning/gauntlets/baseline-phase3/summary.json` so future phases can have their own baselines without naming collision. Phase 5 will want its own `baseline-ship/`. Document the chosen path in Plan 03-01's acceptance.
 
 4. **Does the TSan stress harness need its own minimal CMake target or can it reuse the main one with conditional flags?**
    - What we know: CONTEXT D-08 says `scripts/tt_tsan_stress.sh` "(or equivalent CMake target)."
-   - Recommendation: Separate `tt_tsan_stress` CMake executable target that links only tt.cpp + a minimal driver `tests/tt_tsan_main.cpp`. Avoids polluting the main `v7_engine.{pyd,so}` build with `-fsanitize=thread`. The harness driver spawns 16 std::threads, each doing 60s of `(rand_key, rand_data)` probe/store pairs, then exits 0 on no TSan reports.
+   - RESOLVED: Separate `tt_tsan_stress` CMake executable target that links only tt.cpp + a minimal driver `tests/tt_tsan_main.cpp`. Avoids polluting the main `v7_engine.{pyd,so}` build with `-fsanitize=thread`. The harness driver spawns 16 std::threads, each doing 60s of `(rand_key, rand_data)` probe/store pairs, then exits 0 on no TSan reports.
 
 5. **Should the per-refinement UCI toggles (D-06) default ON in the production build but OFF in the bench build (so NPS sentinel measures the cheapest path)?**
    - What we know: D-06 says "default ON" without distinguishing build types.
-   - Recommendation: Always default ON, including in bench. The NPS sentinel's purpose is to detect regression — if the refinement stack adds 15% NPS overhead vs baseline, that's information we want surfaced, not suppressed. Singular-on vs singular-off sentinel (Success Criterion #4) runs the comparison explicitly via setoption commands.
+   - RESOLVED: Always default ON, including in bench. The NPS sentinel's purpose is to detect regression — if the refinement stack adds 15% NPS overhead vs baseline, that's information we want surfaced, not suppressed. Singular-on vs singular-off sentinel (Success Criterion #4) runs the comparison explicitly via setoption commands.
 
 6. **Where does the fortress UCI option live in the SPRT comparison?**
    - What we know: D-11 says fortress defaults OFF; separate ≥500-game gauntlet flips it ON.
    - Unclear: Does the Phase 3 ship-SPRT (D-05, ≥30 Elo vs baseline) run with `UseFortressEval=false`? Implied yes (fortress doesn't run by default), but worth pinning.
-   - Recommendation: Plan 03-04 documents explicitly: ship-SPRT runs default UCI (fortress OFF). Fortress validation runs as a separate, scoped gauntlet AFTER ship-SPRT passes, regardless of outcome.
+   - RESOLVED: Plan 03-04 documents explicitly: ship-SPRT runs default UCI (fortress OFF). Fortress validation runs as a separate, scoped gauntlet AFTER ship-SPRT passes, regardless of outcome.
 
 ## Environment Availability
 
