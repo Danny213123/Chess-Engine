@@ -1,5 +1,7 @@
 // V7 UCI binary — minimal subset for fastchess (Phase 2).
 // Phase 4 will add setoption Threads/Hash/SyzygyPath.
+// Phase 2: extended with setoption (silent accept) and wtime/btime parsing
+// (RESEARCH §7 budget heuristic: time_ms = (my_time / 30) + my_inc).
 //
 // Plan 06 expansion (FOUND-07): full minimal UCI loop replacing plan 01's
 // handshake stub. Implements `uci`, `isready`, `ucinewgame`, `position
@@ -166,11 +168,16 @@ int main() {
                 }
             }
         } else if (cmd == "go") {
-            // Parse go args. Recognized: `depth N`, `movetime MS`.
+            // Parse go args. Recognized: `depth N`, `movetime MS`,
+            // `wtime W`, `btime B`, `winc I`, `binc J`, `movestogo M`.
             int depth = DEFAULT_GO_DEPTH;
             int time_ms = DEFAULT_GO_TIME_MS;
             bool has_depth = false;
             bool has_movetime = false;
+            int wtime = -1, btime = -1, winc = 0, binc = 0;
+            bool has_wtime = false, has_btime = false;
+            // movestogo parsed for protocol compliance; Phase 2 heuristic does
+            // not use it (RESEARCH §7 uses the simple (my_time/30)+my_inc form).
             for (size_t i = 1; i + 1 < toks.size(); ++i) {
                 if (toks[i] == "depth") {
                     try { depth = std::stoi(toks[i + 1]); has_depth = true; }
@@ -180,13 +187,46 @@ int main() {
                     try { time_ms = std::stoi(toks[i + 1]); has_movetime = true; }
                     catch (...) {}
                     ++i;
+                } else if (toks[i] == "wtime") {
+                    try { wtime = std::stoi(toks[i + 1]); has_wtime = true; }
+                    catch (...) {}
+                    ++i;
+                } else if (toks[i] == "btime") {
+                    try { btime = std::stoi(toks[i + 1]); has_btime = true; }
+                    catch (...) {}
+                    ++i;
+                } else if (toks[i] == "winc") {
+                    try { winc = std::stoi(toks[i + 1]); }
+                    catch (...) {}
+                    ++i;
+                } else if (toks[i] == "binc") {
+                    try { binc = std::stoi(toks[i + 1]); }
+                    catch (...) {}
+                    ++i;
+                } else if (toks[i] == "movestogo") {
+                    // Parsed for protocol compliance; heuristic ignores it.
+                    try { (void)std::stoi(toks[i + 1]); }
+                    catch (...) {}
+                    ++i;
                 }
-                // wtime/btime/winc/binc/movestogo/nodes/mate/infinite — Phase 1 ignores
+                // nodes/mate/infinite — Phase 2 ignores
             }
             if (has_depth && !has_movetime) {
                 // Depth-fixed search: give a generous time cap so depth is the
                 // binding constraint (matches fastchess depth-mode behavior).
                 time_ms = UCI_MAX_TIME_MS;
+            } else if (!has_depth && !has_movetime && (has_wtime || has_btime)) {
+                // RESEARCH §7 Phase-2 budget heuristic: time_ms = (my_time / 30) + my_inc.
+                // Pick white-side vs black-side based on Board::side_to_move
+                // (accessor verified in include/board.hpp: public Color field).
+                int my_time = (board.side_to_move == v7::WHITE) ? wtime : btime;
+                int my_inc  = (board.side_to_move == v7::WHITE) ? winc  : binc;
+                if (my_time < 0) my_time = 0;
+                if (my_inc  < 0) my_inc  = 0;
+                int budget = (my_time / 30) + my_inc;
+                // Floor at 10ms so a near-flag emergency does not produce a 0ms search.
+                if (budget < 10) budget = 10;
+                time_ms = budget;
             }
 
             // Snapshot current position FEN; Engine::search will from_fen +
@@ -204,9 +244,33 @@ int main() {
             engine.stop();
         } else if (cmd == "quit") {
             return 0;
+        } else if (cmd == "setoption") {
+            // Phase 2: silent accept (see RESEARCH §7 / D-12). fastchess sends
+            // `setoption name Hash value N` / `Threads value N` on every match
+            // and expects no error reply. V7's TT is construction-time-only
+            // (A4 in RESEARCH.md) so there is no in-search Hash setter to call;
+            // we accept-and-discard for every name. Mirror the token-walk style
+            // of the `position` branch.
+            //
+            // Canonical form: setoption name <NAME> [value <VALUE>]
+            // We deliberately do nothing with the parsed fields — kept here
+            // for parser-shape clarity and a future Phase-4 wiring point.
+            size_t i = 1;
+            if (i < toks.size() && toks[i] == "name") {
+                ++i;
+                // Skip the option-name token(s) until we hit "value" or run out.
+                while (i < toks.size() && toks[i] != "value") {
+                    ++i;
+                }
+                if (i < toks.size() && toks[i] == "value") {
+                    ++i;
+                    // Remaining token(s) are the value — ignored for Phase 2.
+                }
+            }
+            // Silent no-op: NEVER print "Unknown command" or any error.
         } else {
-            // Phase 1: unknown commands silently ignored (no setoption /
-            // debug / register). See top-of-file documentation.
+            // Phase 1: unknown commands silently ignored (no debug / register).
+            // setoption is handled by its own branch above.
         }
     }
     return 0;
