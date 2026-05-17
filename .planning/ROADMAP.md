@@ -75,7 +75,13 @@
   2. Phase 3 V7 wins a head-to-head gauntlet against the Phase 1 baseline V7 by a clearly measurable Elo margin (≥30 Elo at fixed depth) — confirms LMR/null/futility/etc. are net-positive, not net-negative from off-by-one bugs
   3. KPK test positions (all 163,328 legal positions classified correctly) and the wrong-bishop+rook-pawn drawn-corner test positions return the expected scores; Stockfish-style continuous phase blend produces monotonically-decreasing phase as material is removed
   4. NPS for the singular-extensions-enabled build changes by less than 10% vs singular-disabled (Pitfall 5 search-explosion check passes); LMR-on engine searches deeper at fixed time than LMR-off engine
-**Plans**: TBD
+**Plans**: 6 plans
+- [ ] 03-01-PLAN.md — Wave 1: substrate refactor (SearchStack, persistent killers/history, info.max_depth, g_tt migration) + 11 Wave 0 test stubs + baseline-phase3 gauntlet checkpoint (Phase 1 perf-bug fixes per D-01/D-03)
+- [ ] 03-02-PLAN.md — Wave 2: tier-1 search refinements (adaptive null-move+zugzwang, LMR two-level re-search, RFP/futility/LMP, staged move picker, IIR, recapture extension) + 8 UCI toggles + tier-1 mini-gauntlet (SRCH-03/04/05/06/11/12)
+- [ ] 03-03-PLAN.md — Wave 2: tier-2 search refinements (continuation+capture history, singular extensions, multi-cut, ProbCut) + tier-2 mini-gauntlet with ProbCut bisection (SRCH-07/08/09/10)
+- [ ] 03-04-PLAN.md — Wave 2: endgame (KPK codegen + Fathom oracle, opposition, wrong-bishop+RP, 0..256 phase blend, fortress behind UseFortressEval toggle) + KPK Fathom cross-check + endgame & fortress validation gauntlets (ENDG-01..05)
+- [ ] 03-05-PLAN.md — Wave 2: lockless Hyatt-Mann XOR TT (std::atomic<uint64_t> xkey/data, memory_order_relaxed, age-then-depth replacement) + TSan stress harness (tt_tsan_stress + scripts/tt_tsan_stress.sh) + TSan 16t×60s blocking gate (PAR-01/02/03)
+- [ ] 03-06-PLAN.md — Wave 3: ship-SPRT vs baseline-phase3 (≥30 Elo, 95% CI) + full TSan rerun + NPS sentinel reconfirmation + REQUIREMENTS.md disposition + Phase 3 retrospective + phase-03-shipped tag
 
 ### Phase 4: Lazy SMP + Texel Tuning
 **Goal**: Turn on the parallelism the codebase has been preparing for, and produce the V7 release artifact (Texel-tuned coefficient JSON committed to source). Lazy SMP runs N `std::thread` workers with per-thread history/killers/counter/continuation/stack and a shared lockless TT, with the GIL released for the entire search. Texel pipeline runs against Zurichess `quiet-labeled.epd` with sparse coefficient extraction, K-factor fit once, train/validation split, multi-seed tuning, and codegen of `coeffs.cpp` from JSON for single-source-of-truth names.
@@ -112,7 +118,7 @@
 |-------|----------------|--------|-----------|
 | 1. Skeleton + Smoke | 0/6 | Planned | - |
 | 2. Gauntlet Harness Early | 3/6 | In Progress|  |
-| 3. Lockless TT + Search Refinements + Endgame | 0/? | Not started | - |
+| 3. Lockless TT + Search Refinements + Endgame | 0/6 | Planned | - |
 | 4. Lazy SMP + Texel Tuning | 0/? | Not started | - |
 | 5. Final Gauntlet + Ship | 0/? | Not started | - |
 
