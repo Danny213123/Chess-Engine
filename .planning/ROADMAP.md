@@ -54,7 +54,12 @@
   3. Pentanomial SPRT terminates within ≤5000 games for a clearly-stronger or clearly-weaker engine pair at `elo0=0 elo1=10 alpha=0.05 beta=0.05`
   4. Result aggregator reports time forfeits in a separate column from losses; any forfeit triggers a manual-investigation flag (not silently counted as a loss)
   5. The build fails with a clear error message if V7 NPS on the bench position drops more than 20% vs V6 NPS on the same hardware
-**Plans**: TBD
+**Plans**: 5 plans
+- [ ] 02-01-PLAN.md — Wave 1: V7 UCI extensions — setoption + wtime/btime parsing (GAUNT-02)
+- [ ] 02-02-PLAN.md — Wave 1: V6 UCI binary (v6_uci CMake target + uci_main.cpp + tests) (GAUNT-02)
+- [ ] 02-03-PLAN.md — Wave 1: fetch_fastchess.py + 8moves_v3.pgn vendoring + .gitignore (GAUNT-01, GAUNT-05)
+- [ ] 02-04-PLAN.md — Wave 2: tools/gauntlet.py runner (subcommands, command builder, parser, summary.json) (GAUNT-03, GAUNT-06, GAUNT-07)
+- [ ] 02-05-PLAN.md — Wave 3: NPS regression sentinel + V6-vs-V6 sanity probe checkpoint (GAUNT-04, GAUNT-08)
 
 ### Phase 3: Lockless TT + Search Refinements + Endgame
 **Goal**: Replace V6's single-threaded TT with a Hyatt-Mann XOR lockless TT (gated by a 16-thread × 60-second TSan stress test), add the full modern search refinement stack (LMR with context, adaptive null-move with zugzwang guard, LMP/RFP/futility, killer/history/counter/SEE move ordering, singular extensions, multi-cut, ProbCut, IIR, recapture extensions), and add in-engine endgame knowledge (KPK bitbase, opposition, wrong-bishop+rook-pawn rule, continuous phase blend, optional fortress hints).
