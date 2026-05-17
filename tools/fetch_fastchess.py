@@ -58,7 +58,7 @@ from pathlib import Path
 # verification flow (browser TLS download + local sha256sum compare).
 # Bumping the version after Task 2 is a deliberate 4-line PR: edit
 # FASTCHESS_RELEASE + the three sha256 fields + run a fresh checkpoint.
-FASTCHESS_RELEASE: str = "PENDING_HUMAN_CHECKPOINT"  # e.g. "v1.4.0"
+FASTCHESS_RELEASE: str = "v1.8.0-alpha"  # e.g. "v1.4.0"
 
 # Per-OS asset table. The ``asset`` field is the exact filename inside
 # the GitHub release (the planner records it via the releases API at
@@ -66,9 +66,9 @@ FASTCHESS_RELEASE: str = "PENDING_HUMAN_CHECKPOINT"  # e.g. "v1.4.0"
 # the locally-re-computed digest the human pastes after second-path
 # verification.
 FASTCHESS_ASSETS: dict[str, dict[str, str]] = {
-    "Windows": {"asset": "PENDING_HUMAN_CHECKPOINT", "sha256": "PENDING_HUMAN_CHECKPOINT"},
-    "Linux":   {"asset": "PENDING_HUMAN_CHECKPOINT", "sha256": "PENDING_HUMAN_CHECKPOINT"},
-    "Darwin":  {"asset": "PENDING_HUMAN_CHECKPOINT", "sha256": "PENDING_HUMAN_CHECKPOINT"},
+    "Windows": {"asset": "v1.8.0-alpha", "sha256": "dcd5ad5c72237410f54dfc6e1af59f1088e72c2f67c29244fc974100791f3d13"},
+    "Linux":   {"asset": "v1.8.0-alpha", "sha256": "23bc3774213a2e7db2755510ac974eb5bdc8397867ab1805cc57ccb8c635ba07"},
+    "Darwin":  {"asset": "v1.8.0-alpha", "sha256": "5f5a313b8f8d6222a9914ba76f000197e3bfb3c919a12b9e92e6ac5d516b91fc"},
 }
 
 # Constant the runtime guard compares against. The literal is split at
