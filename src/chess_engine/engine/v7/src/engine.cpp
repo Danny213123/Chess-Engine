@@ -77,17 +77,49 @@ void Engine::new_game() {
     // at every entry point before using pv[ply][*].
     std::memset(history_,      0, sizeof(history_));
     std::memset(counter_moves_, 0, sizeof(counter_moves_));
+
+    // Plan 03-03 SRCH-07: reset continuation history and capture history tables.
+    std::memset(continuation_history_, 0, sizeof(continuation_history_));
+    std::memset(capture_history_,      0, sizeof(capture_history_));
 }
 
 // age_history: decay history values by right-shifting each entry once per
 // search call (Stockfish-style per-search aging, RESEARCH.md A11). This
 // prevents old search scores from dominating future move ordering while
 // preserving directional signal from recent cutoffs.
+// Plan 03-03: also ages continuation_history_ and capture_history_.
 void Engine::age_history() {
+    // Main history: [side][from][to]
     for (int s = 0; s < 2; ++s) {
         for (int from = 0; from < 64; ++from) {
             for (int to = 0; to < 64; ++to) {
                 history_[s][from][to] >>= 1;  // D-03: aging — halve each entry
+            }
+        }
+    }
+
+    // Plan 03-03 SRCH-07: age continuation history [stm][prev_piece][prev_to][stm_now][piece][to]
+    for (int stm = 0; stm < 2; ++stm) {
+        for (int pp = 0; pp < 6; ++pp) {
+            for (int pt = 0; pt < 64; ++pt) {
+                for (int stm2 = 0; stm2 < 2; ++stm2) {
+                    for (int cp = 0; cp < 6; ++cp) {
+                        for (int ct = 0; ct < 64; ++ct) {
+                            continuation_history_[stm][pp][pt][stm2][cp][ct] >>= 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Plan 03-03 SRCH-07: age capture history [stm][piece][to][captured]
+    for (int stm = 0; stm < 2; ++stm) {
+        for (int piece = 0; piece < 6; ++piece) {
+            for (int to = 0; to < 64; ++to) {
+                for (int cap = 0; cap < 6; ++cap) {
+                    capture_history_[stm][piece][to][cap] >>= 1;
+                }
             }
         }
     }
@@ -142,6 +174,10 @@ SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
 
     // D-06: wire options pointer (Task 2; consumed by Plans 03-02/03/04)
     info.options = &options_;
+
+    // Plan 03-03 SRCH-07: wire continuation/capture history non-owning pointers.
+    info.continuation_history = &continuation_history_;
+    info.capture_history      = &capture_history_;
 
     // SRCH-15 — TimeManager allocates a per-move budget with the ≥10% safety
     // clamp. time_ms here is the entire remaining budget for this single

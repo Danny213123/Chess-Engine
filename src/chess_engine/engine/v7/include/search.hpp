@@ -109,6 +109,17 @@ struct SearchStack {
     // without over-extending on unrelated captures.
     // Reference: RESEARCH.md SRCH-12.
     Square prev_capture_sq[MAX_PLY]; // = NO_SQUARE when previous move was non-capture
+
+    // SRCH-07 (Plan 03-03) — continuation history indexing state.
+    // prev_piece[ply]: piece type of the move made at ply-1 (for 1-ply-back indexing).
+    // prev_stm[ply]:   color that made the move at ply-1.
+    // prev_to[ply]:    destination square of the move made at ply-1.
+    // These are set BEFORE the recursive alpha_beta call at ply+1 so the child
+    // can look up the continuation history keyed on the parent's move.
+    // Initialized to -1 (invalid) at alpha_beta entry for ply 0 (no parent move).
+    Piece prev_piece[MAX_PLY]; // piece type of move made by parent ply
+    Color prev_stm[MAX_PLY];   // side that made the move at parent ply
+    Square prev_to[MAX_PLY];   // destination square of parent move
 };
 
 // =============================================================================
@@ -178,6 +189,16 @@ struct SearchInfo {
     Move (*counter_moves)[64][64] = nullptr;     // Plan 03-02: ptr to Engine::counter_moves_[2][64][64]
     const EngineOptions* options = nullptr;      // D-06: ptr to Engine::options_ (Task 2 wires)
 
+    // Plan 03-03 SRCH-07: non-owning pointers to Engine continuation/capture history tables.
+    // Wired by Engine::search alongside info.history / info.counter_moves.
+    // continuation_history: ptr to Engine::continuation_history_[2][6][64][2][6][64]
+    //   Quiet move scoring adds (*continuation_history)[stm][prev_piece][prev_to][stm][piece][to].
+    // capture_history: ptr to Engine::capture_history_[2][6][64][6]
+    //   Updated on capture beta-cutoff. Indexed by [stm][piece][to][captured].
+    // PRESERVE CONTRACT: reset() must NOT clobber these — they are wired per search call.
+    int (*continuation_history)[6][64][2][6][64] = nullptr;  // -> Engine::continuation_history_[2]
+    int (*capture_history)[6][64][6] = nullptr;              // -> Engine::capture_history_[2]
+
     void reset() {
         nodes = 0;
         depth = 0;
@@ -186,8 +207,9 @@ struct SearchInfo {
         best_move = MOVE_NONE;
         // PRESERVE: do NOT clobber external_stop, soft_deadline_ms,
         // hard_deadline_ms, rep_stack, max_depth, tt, search_stack,
-        // history, counter_moves, or options — they are wired by
-        // Engine::search per call and must survive across this reset.
+        // history, counter_moves, options, continuation_history, or
+        // capture_history — they are wired by Engine::search per call
+        // and must survive across this reset.
         // Propagate external_stop into local `stopped` so a stop set BEFORE
         // search begins is respected from the first node poll.
         if (external_stop) stopped.store(external_stop->load(std::memory_order_relaxed));

@@ -57,7 +57,19 @@ PYBIND11_MODULE(v7_engine, m) {
         // release/acquire cycle (pure overhead on a fast write).
         .def("stop", &v7::Engine::stop)
         .def("tbhits", &v7::Engine::tbhits)
-        .def("nodes", &v7::Engine::nodes);
+        .def("nodes", &v7::Engine::nodes)
+        .def("set_option", &v7::Engine::set_option,
+             py::arg("name"), py::arg("value"))
+        // Plan 03-03 SRCH-07: test-only accessors for history tables.
+        // Named peek_* to signal they are read-only introspection methods,
+        // not part of the production search API.
+        .def("peek_history", &v7::Engine::peek_history,
+             py::arg("side"), py::arg("from_sq"), py::arg("to_sq"))
+        .def("peek_continuation_history", &v7::Engine::peek_continuation_history,
+             py::arg("stm"), py::arg("prev_piece"), py::arg("prev_to"),
+             py::arg("stm_now"), py::arg("curr_piece"), py::arg("curr_to"))
+        .def("peek_capture_history", &v7::Engine::peek_capture_history,
+             py::arg("stm"), py::arg("piece"), py::arg("to"), py::arg("captured"));
 
     // Plan 02: real perft now lives in src/perft.cpp; the binding wires
     // &v7::perft_entry directly so the FOUND-06 corpus has a working

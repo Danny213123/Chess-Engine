@@ -214,6 +214,14 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         if (ply + 1 < MAX_PLY) {
             info.search_stack->prev_capture_sq[ply + 1] = NO_SQUARE;
         }
+        // SRCH-07 (Plan 03-03): initialize prev_piece/prev_stm/prev_to for child plies.
+        // At ply == 0, there is no parent move, so initialize child's parent-context
+        // fields to invalid values. alpha_beta at ply+1 reads these to score quiets.
+        if (ply == 0 && ply + 1 < MAX_PLY) {
+            info.search_stack->prev_piece[ply + 1] = NO_PIECE;
+            info.search_stack->prev_stm[ply + 1]   = WHITE;  // placeholder
+            info.search_stack->prev_to[ply + 1]     = NO_SQUARE;
+        }
     }
 
     // SRCH-12 (Plan 03-02): Check extension — gated by UseCheckExt (D-06).
@@ -234,10 +242,20 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
     // -------------------------------------------------------------------------
     // TT probe (SRCH-13: score_from_tt; SRCH-14: 50-move guard)
     // D-01: use info.tt-> instead of g_tt (g_tt migration).
+    //
+    // SRCH-08 CRITICAL INVARIANT (RESEARCH.md Code Examples §SE, Plan 03-03):
+    // When excluded_move[ply] != MOVE_NONE, we are inside a singular verification
+    // re-search. The TT probe MUST be SKIPPED in this case — otherwise the cached
+    // score from the un-excluded search would be returned to the caller, making
+    // the singular test meaningless (the excluded move's score would contaminate
+    // the "all other moves" result). See also: IIR skip of excluded_move[ply] in
+    // Plan 03-02 search.cpp for the same pattern.
     // -------------------------------------------------------------------------
     TTEntry tt_entry;
     Move tt_move = MOVE_NONE;
-    if (info.tt && info.tt->probe(board.hash, tt_entry)) {
+    bool excluded = (info.search_stack && ply < MAX_PLY &&
+                     info.search_stack->excluded_move[ply] != MOVE_NONE);
+    if (!excluded && info.tt && info.tt->probe(board.hash, tt_entry)) {
         tt_move = tt_entry.best_move;
         // SRCH-14 — when near the 50-move boundary, still use the TT for move
         // ordering (tt_move above) but do NOT cut off on the cached score;
@@ -440,8 +458,27 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         counter_move_ptr = nullptr;  // refined in Task 2 via movegen.cpp scorer
     }
 
+    // SRCH-07 (Plan 03-03): augment quiet move scores with continuation history.
+    // score_moves() fills the base scores (TT=1000000, good caps, killers, counter,
+    // history). After that, add the continuation history bonus for quiet moves.
     int move_scores[256];
     score_moves(board, moves, tt_move, ply_killers, history_ptr, counter_move_ptr, move_scores);
+
+    // Add continuation history bonus to quiet moves (not captures).
+    if (have_cont_ctx) {
+        Color stm_now = board.side_to_move;
+        for (int i = 0; i < moves.count; ++i) {
+            Move m = moves[i];
+            if (board.piece_at(move_to(m)) != NO_PIECE) continue;  // skip captures
+            Piece curr_piece = board.piece_at(move_from(m));
+            if (curr_piece == NO_PIECE || curr_piece >= 6) continue;
+            int to_sq = move_to(m);
+            // Continuation history: indexed by parent context + current move
+            int cont_bonus = (*info.continuation_history)[par_prev_stm][par_prev_piece][par_prev_to]
+                                                         [stm_now][curr_piece][to_sq];
+            move_scores[i] += cont_bonus;  // SRCH-07: add continuation history to quiet score
+        }
+    }
 
     std::array<MoveOrder, 256> ordered;
     for (int i = 0; i < moves.count; ++i) {
@@ -468,6 +505,18 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         ? info.search_stack->prev_capture_sq[ply]
         : NO_SQUARE;
 
+    // SRCH-07 (Plan 03-03): read parent-ply continuation context for quiet scoring boost.
+    // At this ply, the parent's move is recorded in prev_piece[ply], prev_stm[ply],
+    // prev_to[ply] (set at ply-1 before the recursive call that reached us).
+    Piece par_prev_piece = (info.search_stack && ply > 0 && ply < MAX_PLY)
+        ? info.search_stack->prev_piece[ply] : NO_PIECE;
+    Color par_prev_stm = (info.search_stack && ply > 0 && ply < MAX_PLY)
+        ? info.search_stack->prev_stm[ply] : WHITE;
+    Square par_prev_to = (info.search_stack && ply > 0 && ply < MAX_PLY)
+        ? info.search_stack->prev_to[ply] : (Square)NO_SQUARE;
+    bool have_cont_ctx = (par_prev_piece != NO_PIECE && par_prev_to != NO_SQUARE
+                          && info.continuation_history != nullptr);
+
     for (int i = 0; i < moves.count; ++i) {
         // Lazy selection sort
         int best_idx = i;
@@ -479,6 +528,15 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         std::swap(ordered[i], ordered[best_idx]);
 
         Move m = ordered[i].move;
+
+        // SRCH-08 CRITICAL INVARIANT (Plan 03-03): skip the excluded move.
+        // During a singular verification re-search, excluded_move[ply] holds the
+        // TT move being tested. We must NOT search it — its absence is the point.
+        if (info.search_stack && ply < MAX_PLY &&
+            m == info.search_stack->excluded_move[ply]) {
+            continue;
+        }
+
         if (board.piece_at(move_to(m)) == KING) {
             continue;
         }
@@ -546,6 +604,11 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         Square prev_ep = board.ep_square;
         int prev_halfmove = board.halfmove_clock;
 
+        // SRCH-07 (Plan 03-03): record piece and side for child's continuation history lookup.
+        // Must be read BEFORE make_move() because piece_at() queries the current position.
+        Piece this_piece = board.piece_at(move_from(m));
+        Color this_stm   = board.side_to_move;
+
         board.make_move(m);
 
         // SRCH-14 — push the post-move hash onto the Engine-owned rep stack
@@ -558,6 +621,20 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         if (info.search_stack && ply + 1 < MAX_PLY) {
             info.search_stack->prev_capture_sq[ply + 1] =
                 is_capture ? static_cast<Square>(move_to(m)) : NO_SQUARE;
+        }
+
+        // SRCH-07 (Plan 03-03): record this move's piece/stm/to for child's continuation lookup.
+        // Child alpha_beta at ply+1 reads prev_piece[ply+1], prev_stm[ply+1], prev_to[ply+1]
+        // to index continuation_history_ keyed on what we (the parent) just played.
+        if (info.search_stack && ply + 1 < MAX_PLY) {
+            if (this_piece >= 0 && this_piece < 6) {
+                info.search_stack->prev_piece[ply + 1] = this_piece;
+                info.search_stack->prev_stm[ply + 1]   = this_stm;
+                info.search_stack->prev_to[ply + 1]     = static_cast<Square>(move_to(m));
+            } else {
+                info.search_stack->prev_piece[ply + 1] = NO_PIECE;
+                info.search_stack->prev_to[ply + 1]     = NO_SQUARE;
+            }
         }
 
         // D-03 Bug #3 fix: child PV is stored in search_stack->pv[ply+1];
@@ -675,6 +752,34 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
                         int from_sq = move_from(m);
                         int to_sq   = move_to(m);
                         (*info.history)[stm][from_sq][to_sq] += depth * depth;  // depth-squared bonus
+                    }
+
+                    // SRCH-07 (Plan 03-03): update continuation history on quiet beta-cutoff.
+                    // Indexed by: parent-move context (prev stm, piece, to) -> this move (stm, piece, to).
+                    // RESEARCH.md D2 §3.5: update += depth * depth on quiet cutoffs.
+                    if (!is_capture && info.continuation_history && have_cont_ctx &&
+                        this_piece >= 0 && this_piece < 6) {
+                        Color stm_now_cut = Color(1 - board.side_to_move);  // side that just moved
+                        int to_sq_cut = move_to(m);
+                        (*info.continuation_history)[par_prev_stm][par_prev_piece][par_prev_to]
+                                                    [stm_now_cut][this_piece][to_sq_cut] += depth * depth;
+                    }
+
+                    // SRCH-07 (Plan 03-03): update capture history on capture beta-cutoff.
+                    // Indexed by: attacking side, attacker piece, destination, captured piece.
+                    // RESEARCH.md D2 §3.5: update += depth * depth on capture cutoffs.
+                    if (is_capture && info.capture_history) {
+                        Color stm_now_cut = Color(1 - board.side_to_move);  // side that captured
+                        Piece captured_piece = board.piece_at(move_to(m));  // AFTER unmake? No.
+                        // After make_move+unmake_move we are back to pre-move state. But we are
+                        // still inside make_move before unmake here. captured was read BEFORE make_move
+                        // (set above as `captured = board.piece_at(move_to(m))`). Use that value.
+                        if (captured != NO_PIECE && captured < 6 &&
+                            this_piece >= 0 && this_piece < 6) {
+                            (*info.capture_history)[stm_now_cut][this_piece][move_to(m)][captured]
+                                += depth * depth;
+                        }
+                        (void)captured_piece;  // suppress unused-variable warning
                     }
 
                     // SRCH-13 — store mate-distance-corrected score.

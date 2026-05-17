@@ -102,12 +102,48 @@ private:
     Move counter_moves_[2][64][64] = {};  // Counter-move heuristic [side_that_moved][from][to]
                                           // Consumed by Plan 03-02; zero = MOVE_NONE per types.hpp
 
+    // Plan 03-03 SRCH-07: continuation history and capture history tables.
+    //
+    // continuation_history_[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to]:
+    //   1-ply-back continuation table (RESEARCH.md D2 §3.5).
+    //   Dimensions: 2 * 6 * 64 * 2 * 6 * 64 = 589,824 ints ≈ 2.3 MB.
+    //   Rationale for 1-ply-back form: simpler indexing than full 4-ply chain;
+    //   captures the most informative history signal (previous move context).
+    //   Incremented by depth*depth on quiet beta-cutoff. Right-shift-1 on new_search().
+    //
+    // capture_history_[stm][piece][to][captured]:
+    //   Indexed by attacking side, attacker piece, destination square, captured piece.
+    //   Dimensions: 2 * 6 * 64 * 6 = 4,608 ints ≈ 18 KB.
+    //   Incremented by depth*depth on capture beta-cutoff. Right-shift-1 on new_search().
+    int continuation_history_[2][6][64][2][6][64] = {};
+    int capture_history_[2][6][64][6] = {};
+
     // D-06 Plan 03-01 Task 2 — UCI option toggles (12 refinement gates)
     EngineOptions options_;        // Defaults: all Tier-1/2 ON, UseFortressEval OFF (D-11)
 
     // age_history: decay history by right-shift-1 before each iterative_deepening
     // call (Stockfish-style per-search aging, RESEARCH.md A11). Called from Engine::search.
+    // Plan 03-03: also ages continuation_history_ and capture_history_.
     void age_history();
+
+    // peek_history: test-only accessor for the main history table.
+    // Returns history_[side][from][to]. Used by test_v7_history.py to
+    // verify accumulation and aging without a debug build flag.
+    int peek_history(int side, int from, int to) const {
+        return history_[side][from][to];
+    }
+
+    // peek_continuation_history: test-only accessor.
+    // Returns continuation_history_[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to].
+    int peek_continuation_history(int stm, int prev_piece, int prev_to,
+                                  int stm_now, int curr_piece, int curr_to) const {
+        return continuation_history_[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to];
+    }
+
+    // peek_capture_history: test-only accessor.
+    int peek_capture_history(int stm, int piece, int to, int captured) const {
+        return capture_history_[stm][piece][to][captured];
+    }
 };
 
 // Free-function perft entry: defined in src/perft.cpp (Plan 02 lands the

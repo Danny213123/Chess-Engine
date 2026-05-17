@@ -47,6 +47,17 @@ MovePicker::MovePicker(const Board& board, Move tt_move,
     // Wire history table pointer
     history_ = info.history;
 
+    // SRCH-07 (Plan 03-03): wire continuation history and parent-move context.
+    continuation_history_ = info.continuation_history;
+    if (info.search_stack && ply > 0 && ply < MAX_PLY) {
+        cont_prev_piece_ = info.search_stack->prev_piece[ply];
+        cont_prev_stm_   = info.search_stack->prev_stm[ply];
+        cont_prev_to_    = info.search_stack->prev_to[ply];
+    } else {
+        cont_prev_piece_ = NO_PIECE;
+        cont_prev_to_    = NO_SQUARE;
+    }
+
     // Initialize all counters
     good_cap_count_ = good_cap_idx_ = 0;
     bad_cap_count_  = bad_cap_idx_  = 0;
@@ -184,12 +195,22 @@ Move MovePicker::next(const Board& board) {
             if (m == killer0_ || m == killer1_) continue;
             if (m == counter_move_ && counter_yielded_) continue;
 
-            // Score by history heuristic
+            // Score by history heuristic + continuation history (SRCH-07, Plan 03-03)
             int from_sq = move_from(m);
             int to_sq   = move_to(m);
             int hist = (history_ != nullptr)
                 ? (*history_)[stm_][from_sq][to_sq]
                 : 0;
+            // SRCH-07: add continuation history bonus when parent context is available
+            if (continuation_history_ != nullptr &&
+                cont_prev_piece_ != NO_PIECE && cont_prev_piece_ < 6 &&
+                cont_prev_to_ != NO_SQUARE) {
+                Piece curr_piece = board.piece_at(from_sq);
+                if (curr_piece >= 0 && curr_piece < 6) {
+                    hist += (*continuation_history_)[cont_prev_stm_][cont_prev_piece_][cont_prev_to_]
+                                                    [stm_][curr_piece][to_sq];
+                }
+            }
             quiets_[quiet_count_]       = m;
             quiet_scores_[quiet_count_] = hist;
             ++quiet_count_;

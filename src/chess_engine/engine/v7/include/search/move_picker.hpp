@@ -65,6 +65,12 @@ private:
     const int (*history_)[64][64] = nullptr;  // Engine::history_[2][64][64]
     Color stm_ = WHITE;  // side to move in this position
 
+    // SRCH-07 (Plan 03-03): continuation history for quiet move scoring boost.
+    const int (*continuation_history_)[6][64][2][6][64] = nullptr;  // -> Engine::continuation_history_[2]
+    Piece cont_prev_piece_ = NO_PIECE;  // parent move's piece (for continuation indexing)
+    Color cont_prev_stm_   = WHITE;     // parent move's stm
+    Square cont_prev_to_   = NO_SQUARE; // parent move's destination
+
     // Capture move buffers (split into good and bad by SEE score)
     static constexpr int MAX_MOVES = 256;
     Move good_captures_[MAX_MOVES];
