@@ -58,8 +58,8 @@
 - [x] 02-01-PLAN.md — Wave 1: V7 UCI extensions — setoption + wtime/btime parsing (GAUNT-02)
 - [x] 02-02-PLAN.md — Wave 1: V6 UCI binary (v6_uci CMake target + uci_main.cpp + tests) (GAUNT-02)
 - [x] 02-03-PLAN.md — Wave 1: fetch_fastchess.py + 8moves_v3.pgn vendoring (or fallback manifest) + .gitignore + human checkpoint for SHA256 verification (GAUNT-01, GAUNT-05)
-- [ ] 02-04a-PLAN.md — Wave 2: tools/gauntlet_core.py pure functions (command builder, stdout/PGN parsers, sanity-verdict) + unit tests (GAUNT-03, GAUNT-06, GAUNT-07)
-- [ ] 02-04b-PLAN.md — Wave 2: tools/gauntlet.py I/O wrapper (subprocess runner, summary.json writer, run/sanity subcommands, D-09 hard deferral) + I/O tests (GAUNT-03, GAUNT-06, GAUNT-07)
+- [x] 02-04a-PLAN.md — Wave 2: tools/gauntlet_core.py pure functions (command builder, stdout/PGN parsers, sanity-verdict) + unit tests (GAUNT-03, GAUNT-06, GAUNT-07)
+- [x] 02-04b-PLAN.md — Wave 2: tools/gauntlet.py I/O wrapper (subprocess runner, summary.json writer, run/sanity subcommands, D-09 hard deferral) + I/O tests (GAUNT-03, GAUNT-06, GAUNT-07)
 - [ ] 02-05-PLAN.md — Wave 3: NPS regression sentinel + V6-vs-V6 sanity probe checkpoint with investigation_required gate (GAUNT-04, GAUNT-08)
 
 ### Phase 3: Lockless TT + Search Refinements + Endgame
