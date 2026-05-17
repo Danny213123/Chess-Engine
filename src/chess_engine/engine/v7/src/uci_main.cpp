@@ -119,6 +119,17 @@ int main() {
         if (cmd == "uci") {
             std::cout << "id name V7\n"
                       << "id author Chess-Engine V7 milestone\n"
+                      // D-06 (Plan 03-02): emit 8 Tier-1 UCI toggle declarations.
+                      // Order: alphabetical for stable diff inspection.
+                      // Plans 03-03 (3 more) and 03-04 (UseFortressEval) extend this.
+                      << "option name UseCheckExt type check default true\n"
+                      << "option name UseFutility type check default true\n"
+                      << "option name UseIIR type check default true\n"
+                      << "option name UseLMR type check default true\n"
+                      << "option name UseLMP type check default true\n"
+                      << "option name UseNullMove type check default true\n"
+                      << "option name UseRFP type check default true\n"
+                      << "option name UseRecaptureExt type check default true\n"
                       << "uciok" << std::endl;
         } else if (cmd == "isready") {
             std::cout << "readyok" << std::endl;
@@ -245,29 +256,53 @@ int main() {
         } else if (cmd == "quit") {
             return 0;
         } else if (cmd == "setoption") {
-            // Phase 2: silent accept (see RESEARCH §7 / D-12). fastchess sends
-            // `setoption name Hash value N` / `Threads value N` on every match
-            // and expects no error reply. V7's TT is construction-time-only
-            // (A4 in RESEARCH.md) so there is no in-search Hash setter to call;
-            // we accept-and-discard for every name. Mirror the token-walk style
-            // of the `position` branch.
+            // D-06 (Plan 03-02): real setoption dispatcher.
+            //
+            // Replaces the Phase 2 silent-accept block. Parses:
+            //   setoption name <NAME> value <VALUE>
+            // Dispatches to engine.set_option(name, value) for all 12 D-06
+            // UCI toggles. Unknown options are handled by Engine::set_option's
+            // "Unknown option: <name>" branch (T-03-X1 threat mitigation).
             //
             // Canonical form: setoption name <NAME> [value <VALUE>]
-            // We deliberately do nothing with the parsed fields — kept here
-            // for parser-shape clarity and a future Phase-4 wiring point.
+            // Multi-word names are concatenated until "value" token is seen.
+            // Single-token boolean values: "true" or "false".
+            //
+            // Log: emits "info string option <name> = <value>" for gauntlet log
+            // forensics (T-03-X2: accepted per D-06 ablation evidence intent).
             size_t i = 1;
+            std::string opt_name, opt_value;
             if (i < toks.size() && toks[i] == "name") {
                 ++i;
-                // Skip the option-name token(s) until we hit "value" or run out.
+                // Collect option name tokens until "value" keyword or end
                 while (i < toks.size() && toks[i] != "value") {
+                    if (!opt_name.empty()) opt_name += ' ';
+                    opt_name += toks[i];
                     ++i;
                 }
                 if (i < toks.size() && toks[i] == "value") {
                     ++i;
-                    // Remaining token(s) are the value — ignored for Phase 2.
+                    // Collect value tokens (all remaining for multi-word values)
+                    while (i < toks.size()) {
+                        if (!opt_value.empty()) opt_value += ' ';
+                        opt_value += toks[i];
+                        ++i;
+                    }
                 }
             }
-            // Silent no-op: NEVER print "Unknown command" or any error.
+
+            if (!opt_name.empty() && !opt_value.empty()) {
+                // Dispatch to Engine::set_option for all known toggles.
+                // Engine::set_option handles: Unknown option, Invalid value.
+                // For truly unknown options (Hash, Threads) that fastchess sends,
+                // Engine::set_option emits "info string Unknown option: <name>"
+                // and continues — protocol-compliant graceful ignore.
+                engine.set_option(opt_name, opt_value);
+                // Log for gauntlet forensics (D-06 ablation evidence)
+                std::cout << "info string option " << opt_name
+                          << " = " << opt_value << std::endl;
+            }
+            // If name or value is missing, silently ignore (malformed setoption).
         } else {
             // Phase 1: unknown commands silently ignored (no debug / register).
             // setoption is handled by its own branch above.
