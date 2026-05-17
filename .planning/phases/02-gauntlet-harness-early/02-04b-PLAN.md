@@ -2,7 +2,7 @@
 phase: 02-gauntlet-harness-early
 plan: 04b
 type: execute
-wave: 2
+wave: 3
 depends_on: ["02-04a"]
 files_modified:
   - tools/gauntlet.py
