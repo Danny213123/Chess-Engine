@@ -251,7 +251,7 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
     // the "all other moves" result). See also: IIR skip of excluded_move[ply] in
     // Plan 03-02 search.cpp for the same pattern.
     // -------------------------------------------------------------------------
-    TTEntry tt_entry;
+    TTEntry tt_entry{};  // zero-initialize so tt_entry.flag/depth/score are valid even on miss
     Move tt_move = MOVE_NONE;
     bool excluded = (info.search_stack && ply < MAX_PLY &&
                      info.search_stack->excluded_move[ply] != MOVE_NONE);
@@ -409,6 +409,90 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         (void)0;
     }
 
+    // -------------------------------------------------------------------------
+    // SRCH-10 (Plan 03-03) — ProbCut.
+    //
+    // At non-PV non-check nodes with depth >= 5, quickly probe whether any
+    // capture can produce a fail-high above a widened beta + probcut_margin.
+    // This avoids expensive deep searches when captures already prove the
+    // position is overwhelmingly good.
+    //
+    // Implementation (RESEARCH.md D2 §3.8):
+    //   1. Filter captures with SEE >= probcut_beta - static_eval (margin filter).
+    //   2. Quick qsearch at zero-window (probcut_beta-1, probcut_beta).
+    //   3. If qsearch raises, confirm with reduced-depth alpha_beta.
+    //   4. If confirmation also raises, return the score directly.
+    //
+    // probcut_margin = 200 (tunable; Phase 4 TUNE-09 may rescale).
+    // probcut_depth  = depth - 3 (reduced verification depth).
+    //
+    // Gate: UseProbCut (D-06). Default ON; may flip to false if tier-2
+    // mini-gauntlet shows regression (D-04 SRCH-10 explicit anticipation).
+    // -------------------------------------------------------------------------
+    constexpr int PROBCUT_MARGIN = 200;  // centipawns above beta — TUNE-09 target
+    if (info.options && info.options->UseProbCut &&
+        !is_pv && !in_check && depth >= 5 &&
+        std::abs(beta) < MATE_IN_MAX_PLY) {
+
+        int probcut_beta  = beta + PROBCUT_MARGIN;
+        int probcut_depth = depth - 3;
+
+        // Enumerate captures (use generate_captures which is quiescence-exact)
+        MoveList prob_caps;
+        generate_captures(board, prob_caps);
+
+        for (int pi = 0; pi < prob_caps.count; ++pi) {
+            Move pm = prob_caps.moves[pi];
+            if (board.piece_at(move_to(pm)) == KING) continue;
+
+            // SEE filter: only try captures that could plausibly beat probcut_beta.
+            // Minimum SEE needed = probcut_beta - static_eval.
+            int min_see = probcut_beta - static_eval;
+            if (see(board, pm) < min_see) continue;
+
+            Piece pm_captured = board.piece_at(move_to(pm));
+            int pm_prev_castling = board.castling_rights;
+            Square pm_prev_ep = board.ep_square;
+            int pm_prev_halfmove = board.halfmove_clock;
+
+            board.make_move(pm);
+
+            // Legality check (skip if leaving king in check)
+            if (board.is_attacked(board.king_square(Color(1 - board.side_to_move)),
+                                  board.side_to_move)) {
+                board.unmake_move(pm, pm_captured, pm_prev_castling, pm_prev_ep, pm_prev_halfmove);
+                continue;
+            }
+
+            if (info.rep_stack) info.rep_stack->push(board.hash);
+
+            // Step 1: qsearch at probcut_beta zero-window
+            int ps = -quiescence(board, -probcut_beta, -probcut_beta + 1, info, ply + 1);
+
+            // Step 2: if qsearch suggests fail-high, confirm with reduced alpha_beta
+            if (ps >= probcut_beta) {
+                ps = -alpha_beta(board, probcut_depth,
+                                 -probcut_beta, -probcut_beta + 1,
+                                 info, ply + 1, false);
+            }
+
+            if (info.rep_stack) info.rep_stack->pop();
+            board.unmake_move(pm, pm_captured, pm_prev_castling, pm_prev_ep, pm_prev_halfmove);
+
+            if (info.stopped) return 0;
+
+            if (ps >= probcut_beta) {
+                // ProbCut: this capture is good enough — return early.
+                // Store in TT so future visits benefit.
+                if (info.tt) {
+                    info.tt->store(board.hash, pm,
+                                   score_to_tt(ps, ply), depth - 1, TT_BETA);
+                }
+                return ps;
+            }
+        }
+    }
+
     // Generate moves
     MoveList moves;
     generate_legal_moves(board, moves);
@@ -436,6 +520,84 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
     // history pointer: info.history is int (*)[64][64] pointing at history_[2][64][64].
     const int (*history_ptr)[64][64] = info.history;
 
+    // -------------------------------------------------------------------------
+    // SRCH-09 (Plan 03-03) — Standalone Multi-Cut at cut nodes (depth >= 8).
+    //
+    // Implementation (RESEARCH.md D2 §3.7, standalone form per plan interfaces):
+    //   At depth >= 8, non-PV, non-check cut nodes: search the first M=6 moves
+    //   with a reduced null-window at depth/2. If >= C=3 moves fail high above
+    //   beta, prune the entire node and return beta directly.
+    //
+    // Rationale for standalone form (vs. piggyback in singular block):
+    //   The standalone form runs at every cut node, not just when the TT move
+    //   satisfies the singular preconditions. This provides stronger pruning
+    //   on positions without a TT entry (plan interfaces recommendation).
+    //
+    // Gate: UseMultiCut (D-06). Default ON.
+    // Note: multi-cut inside the singular block is ALSO applied as a piggyback
+    // (RESEARCH.md Code Examples §SE — multi-cut on singular_beta >= beta).
+    // The two forms are complementary: this fires at all cut nodes, the
+    // singular piggyback fires only at TT-move singular tests.
+    // -------------------------------------------------------------------------
+    constexpr int MC_M = 6;  // number of moves to try
+    constexpr int MC_C = 3;  // threshold for multi-cut
+    if (info.options && info.options->UseMultiCut &&
+        !is_pv && !in_check && depth >= 8) {
+
+        int cuts = 0;
+        int mc_reduced = depth / 2;
+
+        // Score moves for multi-cut ordering (reuse score_moves on the generated list).
+        // moves was just generated above; apply the ordering to pick the top M.
+        int mc_scores[256];
+        score_moves(board, moves, tt_move, ply_killers, history_ptr, nullptr, mc_scores);
+
+        // Insertion sort the first MC_M moves only (partial sort).
+        for (int i = 0; i < std::min(MC_M, moves.count); ++i) {
+            int best_mc = i;
+            for (int j = i + 1; j < moves.count; ++j) {
+                if (mc_scores[j] > mc_scores[best_mc]) best_mc = j;
+            }
+            std::swap(moves.moves[i], moves.moves[best_mc]);
+            std::swap(mc_scores[i], mc_scores[best_mc]);
+        }
+
+        for (int mi = 0; mi < std::min(MC_M, moves.count) && cuts < MC_C; ++mi) {
+            Move mc_m = moves.moves[mi];
+            if (board.piece_at(move_to(mc_m)) == KING) continue;
+
+            Piece mc_captured = board.piece_at(move_to(mc_m));
+            int mc_prev_castling = board.castling_rights;
+            Square mc_prev_ep = board.ep_square;
+            int mc_prev_halfmove = board.halfmove_clock;
+
+            board.make_move(mc_m);
+
+            // Legality check
+            if (board.is_attacked(board.king_square(Color(1 - board.side_to_move)),
+                                  board.side_to_move)) {
+                board.unmake_move(mc_m, mc_captured, mc_prev_castling, mc_prev_ep, mc_prev_halfmove);
+                continue;
+            }
+
+            if (info.rep_stack) info.rep_stack->push(board.hash);
+
+            int mc_score = -alpha_beta(board, mc_reduced - 1,
+                                       -beta - 1, -beta,
+                                       info, ply + 1, false);
+
+            if (info.rep_stack) info.rep_stack->pop();
+            board.unmake_move(mc_m, mc_captured, mc_prev_castling, mc_prev_ep, mc_prev_halfmove);
+
+            if (info.stopped) return 0;
+            if (mc_score >= beta) ++cuts;
+        }
+
+        if (cuts >= MC_C) {
+            return beta;  // SRCH-09: multi-cut — enough moves fail high, prune node
+        }
+    }
+
     // SRCH-06 (Plan 03-02): wire counter-move for this ply.
     // The counter-move is keyed by the previous move's from/to squares and the
     // side that just moved. At ply 0 there is no previous move — pass nullptr.
@@ -457,6 +619,18 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         // TODO: pass parent-move from/to through SearchStack for full wiring.
         counter_move_ptr = nullptr;  // refined in Task 2 via movegen.cpp scorer
     }
+
+    // SRCH-07 (Plan 03-03): read parent-ply continuation context for quiet scoring boost.
+    // At this ply, the parent's move is recorded in prev_piece[ply], prev_stm[ply],
+    // prev_to[ply] (set at ply-1 before the recursive call that reached us).
+    Piece par_prev_piece = (info.search_stack && ply > 0 && ply < MAX_PLY)
+        ? info.search_stack->prev_piece[ply] : NO_PIECE;
+    Color par_prev_stm = (info.search_stack && ply > 0 && ply < MAX_PLY)
+        ? info.search_stack->prev_stm[ply] : WHITE;
+    Square par_prev_to = (info.search_stack && ply > 0 && ply < MAX_PLY)
+        ? info.search_stack->prev_to[ply] : (Square)NO_SQUARE;
+    bool have_cont_ctx = (par_prev_piece != NO_PIECE && par_prev_to != NO_SQUARE
+                          && info.continuation_history != nullptr);
 
     // SRCH-07 (Plan 03-03): augment quiet move scores with continuation history.
     // score_moves() fills the base scores (TT=1000000, good caps, killers, counter,
@@ -504,18 +678,6 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
     Square prev_capt_sq = (info.search_stack && ply > 0 && ply < MAX_PLY)
         ? info.search_stack->prev_capture_sq[ply]
         : NO_SQUARE;
-
-    // SRCH-07 (Plan 03-03): read parent-ply continuation context for quiet scoring boost.
-    // At this ply, the parent's move is recorded in prev_piece[ply], prev_stm[ply],
-    // prev_to[ply] (set at ply-1 before the recursive call that reached us).
-    Piece par_prev_piece = (info.search_stack && ply > 0 && ply < MAX_PLY)
-        ? info.search_stack->prev_piece[ply] : NO_PIECE;
-    Color par_prev_stm = (info.search_stack && ply > 0 && ply < MAX_PLY)
-        ? info.search_stack->prev_stm[ply] : WHITE;
-    Square par_prev_to = (info.search_stack && ply > 0 && ply < MAX_PLY)
-        ? info.search_stack->prev_to[ply] : (Square)NO_SQUARE;
-    bool have_cont_ctx = (par_prev_piece != NO_PIECE && par_prev_to != NO_SQUARE
-                          && info.continuation_history != nullptr);
 
     for (int i = 0; i < moves.count; ++i) {
         // Lazy selection sort
@@ -581,6 +743,76 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         }
 
         // -------------------------------------------------------------------------
+        // SRCH-08 (Plan 03-03) — Singular extensions.
+        //
+        // When the TT move has a beta-bound score at a deep entry and all other
+        // moves fall below a margin (singular verification), extend the TT move
+        // by +1 ply. This identifies "singularly best" moves that deserve deeper
+        // resolution.
+        //
+        // Preconditions (RESEARCH.md Code Examples §SE, Pitfall 2):
+        //   - UseSingular toggle (D-06 gate)
+        //   - depth >= 8 (depth gate — avoids Pitfall 2 search explosion at shallow nodes)
+        //   - m == tt_move (only test the TT move — it's the one we're evaluating)
+        //   - tt_entry.depth >= depth - 3 (TT entry must be fresh enough to trust)
+        //   - tt_entry.flag == TT_BETA (TT move caused a beta-cutoff previously)
+        //   - |tt_entry.score| < MATE_IN_MAX_PLY (avoid singular test near mate scores)
+        //   - !is_root (root node: don't singular-extend at depth 0)
+        //   - excluded_move[ply] == MOVE_NONE (no nested singular searches)
+        //
+        // Verification re-search (CRITICAL INVARIANT):
+        //   Sets excluded_move[ply] = tt_move BEFORE the recursive call.
+        //   The recursive call's TT probe is SKIPPED (excluded != NONE guard at top).
+        //   All moves except tt_move are searched at singular_depth with narrow window.
+        //   If all other moves score below singular_beta: TT move is singular -> extend.
+        //
+        // Multi-cut piggyback (SRCH-09): if singular_beta >= beta, a non-TT move
+        // ALSO failed high above beta in the verification search. Return singular_beta.
+        //
+        // singular_beta  = tt_entry.score - 2 * depth  (canonical Stockfish margin A8)
+        // singular_depth = (depth - 1) / 2             (half the remaining depth)
+        //
+        // Reference: RESEARCH.md Code Examples §SE, Pitfall 2, D-04 SRCH-08.
+        // -------------------------------------------------------------------------
+        int extension = 0;
+        bool singular_tested = false;
+        if (info.options && info.options->UseSingular &&
+            depth >= 8 && m == tt_move && tt_move != MOVE_NONE &&
+            tt_entry.depth >= depth - 3 &&
+            tt_entry.flag == TT_BETA &&
+            std::abs(static_cast<int>(tt_entry.score)) < MATE_IN_MAX_PLY &&
+            !is_root &&
+            !(info.search_stack && ply < MAX_PLY &&
+              info.search_stack->excluded_move[ply] != MOVE_NONE)) {
+
+            int singular_beta  = static_cast<int>(tt_entry.score) - 2 * depth;
+            int singular_depth = (depth - 1) / 2;
+
+            // Set excluded_move to skip the TT move during verification re-search.
+            // CRITICAL: must be cleared BEFORE the recursive call returns to THIS frame
+            // so subsequent iterations of this move loop use excluded_move == MOVE_NONE.
+            info.search_stack->excluded_move[ply] = tt_move;
+
+            int singular_score = alpha_beta(board, singular_depth,
+                                            singular_beta - 1, singular_beta,
+                                            info, ply, false);  // same ply (not ply+1)
+
+            info.search_stack->excluded_move[ply] = MOVE_NONE;  // clear after re-search
+
+            singular_tested = true;
+
+            if (singular_score < singular_beta) {
+                // Singular: TT move is uniquely best — extend it.
+                extension = 1;
+            } else if (info.options->UseMultiCut && singular_beta >= beta) {
+                // Multi-cut piggyback (SRCH-09): a non-TT move also exceeded beta.
+                // This means the position is a fail-high regardless — return early.
+                return singular_beta;
+            }
+        }
+        (void)singular_tested;  // suppress unused-variable if assert disabled
+
+        // -------------------------------------------------------------------------
         // SRCH-12 (Plan 03-02) — Recapture extension.
         //
         // When the current move captures on the same square as the previous move
@@ -592,7 +824,6 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
         //
         // Reference: RESEARCH.md SRCH-12.
         // -------------------------------------------------------------------------
-        int extension = 0;
         if (info.options && info.options->UseRecaptureExt &&
             is_capture && prev_capt_sq != NO_SQUARE &&
             move_to(m) == static_cast<int>(prev_capt_sq)) {

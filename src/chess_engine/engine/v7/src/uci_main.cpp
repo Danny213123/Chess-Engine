@@ -127,9 +127,12 @@ int main() {
                       << "option name UseIIR type check default true\n"
                       << "option name UseLMR type check default true\n"
                       << "option name UseLMP type check default true\n"
+                      << "option name UseMultiCut type check default true\n"
                       << "option name UseNullMove type check default true\n"
+                      << "option name UseProbCut type check default true\n"
                       << "option name UseRFP type check default true\n"
                       << "option name UseRecaptureExt type check default true\n"
+                      << "option name UseSingular type check default true\n"
                       << "uciok" << std::endl;
         } else if (cmd == "isready") {
             std::cout << "readyok" << std::endl;
