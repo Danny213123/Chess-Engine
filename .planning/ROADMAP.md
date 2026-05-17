@@ -49,17 +49,18 @@
 **Requirements**:
   - Gauntlet harness (F1): GAUNT-01, GAUNT-02, GAUNT-03, GAUNT-04, GAUNT-05, GAUNT-06, GAUNT-07, GAUNT-08
 **Success Criteria** (what must be TRUE):
-  1. Running the gauntlet script with V6 vs V6 at production options (identical Hash, Threads, TC) returns an Elo difference within ±10 (statistical zero) — sanity probe passes
+  1. Running the gauntlet script with V6 vs V6 at production options (identical Hash, Threads, TC) returns an Elo difference within ±15 (per D-10 — statistical zero at 200 games; supersedes the earlier ±10 estimate) — sanity probe passes
   2. The exact fastchess command line is persisted in every result file, and re-running the same command on the same hardware reproduces the result within 95% CI
   3. Pentanomial SPRT terminates within ≤5000 games for a clearly-stronger or clearly-weaker engine pair at `elo0=0 elo1=10 alpha=0.05 beta=0.05`
   4. Result aggregator reports time forfeits in a separate column from losses; any forfeit triggers a manual-investigation flag (not silently counted as a loss)
   5. The build fails with a clear error message if V7 NPS on the bench position drops more than 20% vs V6 NPS on the same hardware
-**Plans**: 5 plans
+**Plans**: 6 plans
 - [ ] 02-01-PLAN.md — Wave 1: V7 UCI extensions — setoption + wtime/btime parsing (GAUNT-02)
 - [ ] 02-02-PLAN.md — Wave 1: V6 UCI binary (v6_uci CMake target + uci_main.cpp + tests) (GAUNT-02)
-- [ ] 02-03-PLAN.md — Wave 1: fetch_fastchess.py + 8moves_v3.pgn vendoring + .gitignore (GAUNT-01, GAUNT-05)
-- [ ] 02-04-PLAN.md — Wave 2: tools/gauntlet.py runner (subcommands, command builder, parser, summary.json) (GAUNT-03, GAUNT-06, GAUNT-07)
-- [ ] 02-05-PLAN.md — Wave 3: NPS regression sentinel + V6-vs-V6 sanity probe checkpoint (GAUNT-04, GAUNT-08)
+- [ ] 02-03-PLAN.md — Wave 1: fetch_fastchess.py + 8moves_v3.pgn vendoring (or fallback manifest) + .gitignore + human checkpoint for SHA256 verification (GAUNT-01, GAUNT-05)
+- [ ] 02-04a-PLAN.md — Wave 2: tools/gauntlet_core.py pure functions (command builder, stdout/PGN parsers, sanity-verdict) + unit tests (GAUNT-03, GAUNT-06, GAUNT-07)
+- [ ] 02-04b-PLAN.md — Wave 2: tools/gauntlet.py I/O wrapper (subprocess runner, summary.json writer, run/sanity subcommands, D-09 hard deferral) + I/O tests (GAUNT-03, GAUNT-06, GAUNT-07)
+- [ ] 02-05-PLAN.md — Wave 3: NPS regression sentinel + V6-vs-V6 sanity probe checkpoint with investigation_required gate (GAUNT-04, GAUNT-08)
 
 ### Phase 3: Lockless TT + Search Refinements + Endgame
 **Goal**: Replace V6's single-threaded TT with a Hyatt-Mann XOR lockless TT (gated by a 16-thread × 60-second TSan stress test), add the full modern search refinement stack (LMR with context, adaptive null-move with zugzwang guard, LMP/RFP/futility, killer/history/counter/SEE move ordering, singular extensions, multi-cut, ProbCut, IIR, recapture extensions), and add in-engine endgame knowledge (KPK bitbase, opposition, wrong-bishop+rook-pawn rule, continuous phase blend, optional fortress hints).
@@ -100,7 +101,7 @@
   - Ship verdict (G1): GAUNT-09
 **Success Criteria** (what must be TRUE):
   1. SPRT terminates with H1 acceptance (V7 stronger than V6 at `elo0=0 elo1=10 alpha=0.05 beta=0.05`) in **at least 2 independent runs** at production thread count, each ≥1000 games, run on plugged-in non-throttled hardware
-  2. The V6-vs-V6 sanity probe re-run before each ship gauntlet returns Elo within ±10 (no environmental drift since Phase 2)
+  2. The V6-vs-V6 sanity probe re-run before each ship gauntlet returns Elo within ±15 (per D-10 — matches Phase 2 tolerance; no environmental drift since Phase 2)
   3. Every item in the PITFALLS.md "Looks Done But Isn't" checklist (16 items) is verified and recorded as passing — Lazy SMP cores hit, TT persists across moves, mate scores correct, repetition draws return 0, Syzygy hits reported, V7 in both UI dropdowns, V1–V6 still work, CLI bench v7 runs
   4. Final result files (containing the exact fastchess command line, pentanomial result, LOS, time-forfeit count, and SPRT verdict) are committed for both independent runs
 **Plans**: TBD
@@ -110,7 +111,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Skeleton + Smoke | 0/6 | Planned | - |
-| 2. Gauntlet Harness Early | 0/? | Not started | - |
+| 2. Gauntlet Harness Early | 0/6 | Planned | - |
 | 3. Lockless TT + Search Refinements + Endgame | 0/? | Not started | - |
 | 4. Lazy SMP + Texel Tuning | 0/? | Not started | - |
 | 5. Final Gauntlet + Ship | 0/? | Not started | - |
@@ -148,3 +149,4 @@ These ordering decisions were made during roadmap creation and bind the planner:
 
 ---
 *Roadmap created: 2026-05-15*
+*Phase 2 plans revised: 2026-05-16 — split 02-04 into 02-04a (pure) + 02-04b (I/O), added human checkpoint to 02-03 for SHA256 verification, fixed ±10 → ±15 tolerance per D-10, added investigation_required gate to 02-05 Task 3.*

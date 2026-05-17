@@ -200,7 +200,8 @@ Keep the **last** match of each pattern as it streams (the final progress block 
     "llr": 2.90, "llr_lower": -2.25, "llr_upper": 2.89,
     "games": {"n": 4186, "w": 1197, "l": 1030, "d": 1959},
     "penta": [130, 455, 782, 570, 156],
-    "time_forfeits": {"v7": 0, "v6": 2}
+    "time_forfeits": {"v7": 0, "v6": 2},
+    "investigation_required": false
   },
   "nps": {
     "v7": {"median": 528000, "mean": 540123, "samples": 1197},
@@ -418,21 +419,45 @@ This matches the structure of the existing Phase 1 `test_nps_sentinel(v7_native_
 - **Do NOT run any V7 gauntlet in CI** — Phase 1 perf bugs make NPS measurements meaningless until gap-closure (D-09). Document this in the test docstrings so the deferral reasoning is visible at the failure site.
 - **The NPS sentinel (`test_nps_regression`)** must read from a synthetic `summary.json` fixture during unit testing, NOT trigger a real gauntlet. The real check happens when a human/CI runs the full `RUN_BENCHMARKS=1` sentinel after the V7-vs-V6 run completes.
 
-## 10. Open Questions for Planner
+## 10. Open Questions for Planner (RESOLVED)
+
+> Each question below is resolved either by stating the answer at planning time or by an explicit execution-time-defer contract (resolution task, fallback if resolution fails, dependent-plan reaction).
 
 ### Cannot resolve from docs alone (verify during implementation)
 
-1. **Exact `[Termination]` string for time forfeits in fastchess PGN.** [ASSUMED based on cutechess compatibility] cutechess emits `[Termination "time forfeit"]`; fastchess inherits this convention but the exact string was not confirmed in docs. The planner should write a contrived test (engine that sleeps past TC) early in implementation and capture the actual string. The time-forfeit parsing logic depends on this.
+1. **Exact `[Termination]` string for time forfeits in fastchess PGN.** [ASSUMED based on cutechess compatibility] cutechess emits `[Termination "time forfeit"]`; fastchess inherits this convention but the exact string was not confirmed in docs.
 
-2. **Exact fastchess release asset filenames at the chosen tag.** [VERIFIED that releases exist; ASSUMED about per-tag naming consistency] Disservin/fastchess release asset naming has evolved across versions (some include `-musl`, ARM variants added later, etc.). The planner should run `curl ... /releases/latest` at plan time and pin to actual filenames, not pattern-match.
+   **RESOLVED (planning-time):** Execution-time-defer contract.
+   - **Authoritative strings parsed (in priority order, case-insensitive substring match):** `"time forfeit"`, `"on time"`, `"adjudication"`, `"adjudicated"`, `"illegal move"`, `"disconnected"`. The first two are treated as time forfeits and tallied into `summary["result"]["time_forfeits"]`. The latter three are recorded under a separate `summary["result"]["other_terminations"]` bucket (out of scope for forfeit-counting but useful for debugging).
+   - **Resolution point:** Plan 02-04b Task 1's `parse_pgn_terminations` implementation hardcodes these strings as a `TIME_FORFEIT_PATTERNS` tuple. Plan 02-05's V6-vs-V6 sanity checkpoint (Task 3) is the first real-fastchess output the project sees — the executor inspects `games.pgn` `[Termination]` headers and confirms the strings match.
+   - **Fallback if literal strings differ:** the parser treats any `[Termination]` value it cannot classify as a time forfeit (i.e. not in `TIME_FORFEIT_PATTERNS`) AND that ended with a non-normal result (not `"normal"`, not absent, not `"unterminated"`) as a forfeit-equivalent: increment the engine's `time_forfeits` count AND set `summary["result"]["investigation_required"] = true` so the checkpoint surfaces it for human review. Errs on the side of over-flagging rather than silent miscounting.
+   - **Dependent plan reaction:** Plan 02-05 Task 3 acceptance criterion (`investigation_required == false`) catches the mismatch automatically — the sanity run does not auto-approve until the executor confirms the termination strings.
 
-3. **License compatibility of `8moves_v3.pgn` from `official-stockfish/books`.** [ASSUMED] Stockfish itself is GPL-3.0; the books repo's LICENSE was not confirmed. If GPL, vendoring the PGN may require this repo to be GPL — confirm before committing. If incompatible, the fallback is fetch-at-runtime per D-11.
+2. **Exact fastchess release asset filenames at the chosen tag.** [VERIFIED that releases exist; ASSUMED about per-tag naming consistency]
 
-4. **Whether `v6_engine` exposes a TT-size setter via pybind11.** [PARTIAL: not searched exhaustively] If the C++ V6 engine has a `set_hash_size(N)` or equivalent on its Engine class, then `v6_uci` can implement `setoption name Hash value N` to apply it. If not, V6 will run with whatever default TT it has and the GAUNT-03 "identical Hash size" invariant becomes notional. The planner needs to grep V6's `python_bindings.cpp` early; if no setter exists, document it as a known asymmetry in the V6-vs-V6 sanity run (both V6 instances will use the same default, so sanity still works; V7-vs-V6 verdict will need an exposed setter or an asterisk).
+   **RESOLVED (planning-time):** Execution-time-defer contract.
+   - **Resolution point:** Plan 02-03 Task 1 sub-A. The executor queries `curl -s https://api.github.com/repos/Disservin/fastchess/releases/latest` to obtain the exact asset filenames and the chosen tag, then downloads each per-OS asset via browser (verifies SSL cert chain), computes `sha256sum` locally, hardcodes both into `FASTCHESS_ASSETS`. This is the checkpoint added per WARNING-4.
+   - **Fallback if naming is unexpected (e.g. release has no macOS asset, or names use `darwin-arm64` instead of `macos-x86_64`):** the executor records the actual asset name verbatim in `FASTCHESS_ASSETS` — there is no name-pattern requirement. The script does not pattern-match; it looks up by exact `platform.system()` key.
 
-5. **Whether `v7_uci`'s `Engine::stop()` actually interrupts mid-search in the unit-test subprocess context.** [VERIFIED to be a documented limitation in uci_main.cpp lines 200-204] The current loop reads stdin synchronously; `stop` doesn't fire until after search returns. For TC-based gauntlet matches this works because fastchess respects wtime/btime rather than sending mid-search `stop`. For `go infinite` it doesn't. Planner should not need to fix this for Phase 2 (TC-bounded only), but should call it out in the plan as a "Phase 4 concern when async search lands."
+3. **License compatibility of `8moves_v3.pgn` from `official-stockfish/books`.** [ASSUMED] Stockfish itself is GPL-3.0; the books repo's LICENSE was not confirmed.
 
-6. **Whether fastchess inherits cwd-relative paths or requires absolute paths for `-engine cmd=`.** Probably the latter (more portable) — but worth confirming in the first integration test. The wrapper should pass absolute paths defensively.
+   **RESOLVED (planning-time):** Execution-time-defer contract with cross-plan fallback.
+   - **Resolution point:** Plan 02-03 Task 1 sub-B. The executor reads `https://github.com/official-stockfish/books/blob/master/LICENSE` (or `LICENSE.md`) at execution time.
+   - **Path A — license is GPL-compatible (MIT / BSD / public domain / CC0 / Apache-2.0):** Vendor `8moves_v3.pgn` under `tools/books/` and record the license quote in `SOURCES.md`.
+   - **Path B — license is GPL-3.0 (or anything incompatible with this repo's downstream licensing):** Switch to fetch-on-demand. Plan 02-03 writes a small JSON manifest at `tools/books/.fetch_fallback.json` with the upstream URL + commit SHA + SHA256 of the unzipped PGN. The file `tools/books/8moves_v3.pgn` is NOT committed in this path. Plan 02-04b (the I/O closure) reads this manifest in `resolve_engines` (or a new helper `ensure_opening_book()`) and, if `tools/books/8moves_v3.pgn` is missing, downloads to `tools/.cache/8moves_v3.pgn` and uses that absolute path for the fastchess `-openings file=` flag. The manifest's SHA256 gate matches the `ensure_fastchess()` discipline.
+   - **Dependent plan reaction:** Plan 02-04b `build_fastchess_command` always reads the book path from a helper (not a hardcoded `tools/books/8moves_v3.pgn` constant) so both paths resolve transparently to the same gauntlet contract. This closes WARNING-5: no license outcome can leave Plan 02-04 broken.
+
+4. **Whether `v6_engine` exposes a TT-size setter via pybind11.** [PARTIAL: not searched exhaustively]
+
+   **RESOLVED (planning-time):** Answer = no setter is exposed in a useful form. V6's TT is construction-time-only (per the existing `v6/include/tt.hpp` global `v6::TT` singleton). Both `v6_uci` and `v7_uci` `setoption name Hash value N` branches are silent accept (no-op) for Phase 2 — documented as A4 asymmetry in `02-02-PLAN.md` and `02-01-PLAN.md` (already done). Since both engines use the same default TT size, V6-vs-V6 sanity is unaffected. V7-vs-V6 verdict (deferred to Phase 3 per D-09) inherits the same asymmetry; address in Phase 3 if needed by exposing a runtime setter.
+
+5. **Whether `v7_uci`'s `Engine::stop()` actually interrupts mid-search in the unit-test subprocess context.** [VERIFIED to be a documented limitation in uci_main.cpp lines 200-204]
+
+   **RESOLVED (planning-time):** Answer = documented limitation, no Phase 2 action. Phase 2 is TC-bounded, so fastchess uses `wtime/btime` (engine returns when its computed budget elapses) rather than mid-search `stop`. Phase 4 may add an atomic-flag cancellation. No plan in Phase 2 attempts `go infinite`.
+
+6. **Whether fastchess inherits cwd-relative paths or requires absolute paths for `-engine cmd=`.**
+
+   **RESOLVED (planning-time):** Answer = always pass absolute paths. Plan 02-04b's `resolve_engines` function returns `Path.resolve()` absolute paths defensively (no need to verify upstream — passing absolute paths is strictly safer than cwd-relative and works under both cases). This is already encoded in 02-04 must_haves and is retained in the split.
 
 ### Resolved by spec / existing decisions
 
@@ -447,10 +472,10 @@ This matches the structure of the existing Phase 1 `test_nps_sentinel(v7_native_
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | fastchess emits `[Termination "time forfeit"]` in PGN for time losses | §4, §10 Q1 | GAUNT-07 parser produces wrong counts; fixable by editing the string match after first observation |
-| A2 | Per-release asset filenames follow `fastchess-{platform}-{arch}` convention | §3, §6 | Fetch URL 404s; trivial fix once correct filenames known |
-| A3 | `8moves_v3.pgn` license permits in-repo vendoring | §5 | May need to switch to fetch-on-demand; structural impact on the plan |
-| A4 | V6's pybind11 module exposes (or can trivially expose) a `set_hash_size`/equivalent | §10 Q4 | `v6_uci`'s `setoption Hash` becomes a no-op; V6-vs-V6 sanity still works because asymmetry is zero |
+| A1 | fastchess emits `[Termination "time forfeit"]` in PGN for time losses | §4, §10 Q1 | GAUNT-07 parser produces wrong counts; mitigated by §10 Q1 RESOLVED contract — over-flagging + `investigation_required` |
+| A2 | Per-release asset filenames follow `fastchess-{platform}-{arch}` convention | §3, §6 | Fetch URL 404s; mitigated by §10 Q2 RESOLVED contract — executor queries API at plan time |
+| A3 | `8moves_v3.pgn` license permits in-repo vendoring | §5 | May need to switch to fetch-on-demand; mitigated by §10 Q3 RESOLVED contract — fetch-fallback manifest |
+| A4 | V6's pybind11 module exposes (or can trivially expose) a `set_hash_size`/equivalent | §10 Q4 | No setter — `setoption Hash` is silent no-op; documented; V6-vs-V6 unaffected |
 | A5 | fastchess `-recover` handles V7 perf-bug-induced timeouts gracefully (continues match) | §2 | Without `-recover`, a single timeout aborts the run; explicitly setting `-recover` mitigates |
 | A6 | `bench` UCI extension or `position + go movetime + parse info` works in both v6_uci (once built) and v7_uci for NPS probing | §8 | Fall back to PGN-derived NPS (Option A) |
 
@@ -495,9 +520,9 @@ This matches the structure of the existing Phase 1 `test_nps_sentinel(v7_native_
 - **fishtest games.py parser** — official-stockfish/fishtest `worker/games.py` — battle-tested reference for parsing fastchess output
 
 ### Tertiary (LOW confidence — flagged for in-implementation verification)
-- Exact PGN `[Termination]` string for time forfeits (A1)
-- Per-release fastchess asset naming convention (A2)
-- `8moves_v3.pgn` license compatibility (A3)
+- Exact PGN `[Termination]` string for time forfeits (A1 — resolved at runtime per §10 Q1)
+- Per-release fastchess asset naming convention (A2 — resolved at planning time per §10 Q2)
+- `8moves_v3.pgn` license compatibility (A3 — resolved at planning time per §10 Q3)
 
 ## Metadata
 
