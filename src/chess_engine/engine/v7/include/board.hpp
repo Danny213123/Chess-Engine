@@ -74,6 +74,14 @@ struct Board {
 
     // Debug
     void print() const;
+
+    // D-01 + D-03 scaffold: non-pawn material count for a given side.
+    // Returns the total midgame material value of knights, bishops, rooks,
+    // and queens for color c, using v7::coeffs mg values (EVAL-10 — no
+    // hardcoded constants). Consumed by:
+    //   - Plan 03-02 null-move zugzwang guard (RESEARCH.md Pitfall 4)
+    //   - Plan 03-04 0..256 phase blend (ENDG-04)
+    int non_pawn_material(Color c) const;
 };
 
 // =============================================================================

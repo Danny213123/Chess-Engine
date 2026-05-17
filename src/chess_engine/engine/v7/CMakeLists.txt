@@ -89,6 +89,8 @@ set(V7_SOURCES
     ${COEFFS_CPP}                                  # Plan 04 generates via add_custom_command
     ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp     # Plan 05 fills (currently stub)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/python_bindings.cpp
+    # Plan 03-01 cross-Wave-2 scaffold: MovePicker stub (Plan 03-02 Task 2 fills body)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/search/move_picker.cpp
 )
 
 pybind11_add_module(v7_engine MODULE ${V7_SOURCES})
@@ -121,6 +123,7 @@ add_executable(v7_uci
     ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.cpp
     ${COEFFS_CPP}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/search/move_picker.cpp  # Plan 03-01 scaffold
 )
 target_include_directories(v7_uci PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

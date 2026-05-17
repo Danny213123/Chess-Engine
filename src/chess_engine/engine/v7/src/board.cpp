@@ -1,4 +1,5 @@
 #include "board.hpp"
+#include "coeffs.hpp"   // for v7::coeffs::material_mg_N/B/R/Q (EVAL-10: no hardcoded values)
 #include <random>
 #include <iostream>
 
@@ -230,6 +231,31 @@ void Board::print() const {
     }
     std::cout << "    a   b   c   d   e   f   g   h\n\n";
     std::cout << "FEN: " << to_fen() << "\n";
+}
+
+// =============================================================================
+// NON-PAWN MATERIAL HELPER (D-01 + D-03 scaffold)
+// =============================================================================
+//
+// Returns the sum of midgame material values for all non-pawn, non-king
+// pieces of color c. Uses v7::coeffs externs so the values stay consistent
+// with the tunable coefficient pipeline (EVAL-10: single source of truth).
+//
+// Consumed by:
+//   - Plan 03-02 null-move zugzwang guard (RESEARCH.md Pitfall 4):
+//     `if (board.non_pawn_material(stm) == 0) skip_null_move();`
+//   - Plan 03-04 0..256 phase blend (ENDG-04):
+//     phase computed from total non_pawn_material across both sides.
+
+int Board::non_pawn_material(Color c) const {
+    // EVAL-10: piece values come from v7::coeffs externs — not hardcoded.
+    // Using midgame material values for consistency with the evaluation phase.
+    int npm = 0;
+    npm += popcount(pieces_of(c, KNIGHT)) * v7::coeffs::material_mg_N;
+    npm += popcount(pieces_of(c, BISHOP)) * v7::coeffs::material_mg_B;
+    npm += popcount(pieces_of(c, ROOK))   * v7::coeffs::material_mg_R;
+    npm += popcount(pieces_of(c, QUEEN))  * v7::coeffs::material_mg_Q;
+    return npm;
 }
 
 } // namespace v7
