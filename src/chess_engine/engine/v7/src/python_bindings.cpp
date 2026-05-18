@@ -70,7 +70,24 @@ PYBIND11_MODULE(v7_engine, m) {
              py::arg("stm"), py::arg("prev_piece"), py::arg("prev_to"),
              py::arg("stm_now"), py::arg("curr_piece"), py::arg("curr_to"))
         .def("peek_capture_history", &v7::Engine::peek_capture_history,
-             py::arg("stm"), py::arg("piece"), py::arg("to"), py::arg("captured"));
+             py::arg("stm"), py::arg("piece"), py::arg("to"), py::arg("captured"))
+        // Plan 03-05 — test-only TT introspection surface (PAR-01/02).
+        // Used by tests/test_v7_tt_lockless.py to exercise the lockless XOR
+        // probe/store roundtrip and the age-then-depth replacement contract
+        // end-to-end via Python. NOT part of the production search API.
+        .def("tt_probe", [](v7::Engine& e, uint64_t hash) {
+            auto r = e.tt_probe(hash);
+            // Return a 6-tuple: (hit, best_move, score, depth, flag, age)
+            return py::make_tuple(r.hit, r.best_move, r.score, r.depth, r.flag, r.age);
+        }, py::arg("hash"))
+        .def("tt_store", &v7::Engine::tt_store,
+             py::arg("hash"), py::arg("best_move"), py::arg("score"),
+             py::arg("depth"), py::arg("flag"))
+        .def("tt_clear", &v7::Engine::tt_clear)
+        .def("tt_new_search", &v7::Engine::tt_new_search)
+        .def("tt_num_entries", &v7::Engine::tt_num_entries)
+        .def("tt_hits", &v7::Engine::tt_hits)
+        .def("tt_misses", &v7::Engine::tt_misses);
 
     // Plan 02: real perft now lives in src/perft.cpp; the binding wires
     // &v7::perft_entry directly so the FOUND-06 corpus has a working
