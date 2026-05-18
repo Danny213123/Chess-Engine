@@ -308,3 +308,105 @@ def test_collect_per_move_nps_empty_when_no_samples(tmp_path):
     result = gc.collect_per_move_nps(pgn, ["v6", "v7"])
     assert result["v7"] == {"median": None, "mean": None, "samples": 0}
     assert result["v6"] == {"median": None, "mean": None, "samples": 0}
+
+
+# ---------------------------------------------------------------------------
+# parse_engine_options — Plan 04-02 Task 1 (per-side options parser)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_engine_options_two_pairs():
+    # Separator is ';' (documented; ',' reads ambiguously with multi-value opts)
+    assert gc.parse_engine_options("Threads=4;Hash=64") == [
+        ("Threads", "4"),
+        ("Hash", "64"),
+    ]
+
+
+def test_parse_engine_options_empty_returns_empty_list():
+    assert gc.parse_engine_options("") == []
+
+
+def test_parse_engine_options_single_pair():
+    assert gc.parse_engine_options("Threads=4") == [("Threads", "4")]
+
+
+def test_parse_engine_options_empty_value_raises():
+    with pytest.raises(ValueError):
+        gc.parse_engine_options("Threads=;Hash=64")
+
+
+def test_parse_engine_options_empty_name_raises():
+    with pytest.raises(ValueError):
+        gc.parse_engine_options("=4")
+
+
+def test_parse_engine_options_missing_separator_raises():
+    with pytest.raises(ValueError):
+        gc.parse_engine_options("invalid")
+
+
+def test_parse_engine_options_order_preserved():
+    # Iteration order must match the input string order — gauntlet recipes
+    # rely on `Threads` appearing before `Hash` for legibility.
+    assert gc.parse_engine_options("a=1;b=2;c=3") == [
+        ("a", "1"),
+        ("b", "2"),
+        ("c", "3"),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# build_fastchess_command — Plan 04-02 Task 1 per-side option wiring
+# ---------------------------------------------------------------------------
+
+
+def test_per_side_options_emit_option_tokens_in_each_engine_block():
+    """engine_a_options / engine_b_options append option.X=Y tokens per side."""
+    cmd = gc.build_fastchess_command(
+        **_stub_args(
+            engines={
+                "v7_a": Path("src/chess_engine/engine/v7/build/v7_uci"),
+                "v7_b": Path("src/chess_engine/engine/v7/build/v7_uci"),
+            },
+            engine_a_options=[("Threads", "4"), ("Hash", "64")],
+            engine_b_options=[("Threads", "1"), ("Hash", "64")],
+        )
+    )
+    # Both per-side Threads tokens must appear (different values).
+    assert "option.Threads=4" in cmd
+    assert "option.Threads=1" in cmd
+    # v7_a block precedes v7_b block; the Threads=4 token must appear inside
+    # the FIRST -engine block (before the second `-engine` token).
+    first_engine = cmd.index("-engine")
+    second_engine = cmd.index("-engine", first_engine + 1)
+    a_slice = cmd[first_engine:second_engine]
+    b_slice = cmd[second_engine:]
+    assert "option.Threads=4" in a_slice
+    assert "option.Threads=1" in b_slice
+
+
+def test_backwards_compat_no_per_side_options_unchanged():
+    """Pre-Plan-04-02 callers (no engine_*_options kwargs) get identical argv.
+
+    The Phase 2 V6-vs-V7 / V6-vs-V6 invocation path must produce the same
+    command list as before — None defaults preserve existing behavior.
+    """
+    cmd_default = gc.build_fastchess_command(**_stub_args())
+    cmd_explicit_none = gc.build_fastchess_command(
+        **_stub_args(engine_a_options=None, engine_b_options=None)
+    )
+    assert cmd_default == cmd_explicit_none
+
+
+def test_per_side_options_none_defaults_emit_only_base_option_tokens():
+    """Without per-side options, only the existing `option.Hash` / `option.Threads`
+    base tokens (from the `hash_mb` / `threads` kwargs) are emitted — no extras.
+    """
+    cmd = gc.build_fastchess_command(**_stub_args(hash_mb=64, threads=1))
+    # Phase 2 base tokens still present
+    assert "option.Hash=64" in cmd
+    assert "option.Threads=1" in cmd
+    # No duplicate / per-side Threads with a different value
+    threads_tokens = [t for t in cmd if t.startswith("option.Threads=")]
+    assert threads_tokens == ["option.Threads=1", "option.Threads=1"]  # one per engine block

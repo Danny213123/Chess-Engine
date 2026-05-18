@@ -144,6 +144,92 @@ def test_run_subcommand_has_no_i_know_flag(capsys: pytest.CaptureFixture[str]) -
 
 
 # ---------------------------------------------------------------------------
+# Plan 04-02 — narrowed D-09 defer for self-play V7-vs-V7 + per-side options
+# ---------------------------------------------------------------------------
+
+
+def test_run_subcommand_defer_still_fires_without_per_side_options(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Self-play invocation WITHOUT --engine-a-options / --engine-b-options must
+    still hit the D-09 defer — the narrow lift only applies when both per-side
+    option flags are supplied (otherwise the two sides are indistinguishable).
+    """
+    bin_path = tmp_path / "v7_uci"
+    bin_path.write_bytes(b"")
+    rc = g.main(
+        [
+            "run",
+            "--binary-a",
+            str(bin_path),
+            "--binary-b",
+            str(bin_path),
+            "--dry-run",
+        ]
+    )
+    assert rc == 2
+    assert g.D9_MESSAGE in capsys.readouterr().err
+
+
+def test_run_subcommand_self_play_with_per_side_options_dry_run(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Self-play with per-side options + --dry-run → exits 0 and prints the
+    constructed fastchess command including both per-side Threads tokens.
+    """
+    bin_path = tmp_path / "v7_uci"
+    bin_path.write_bytes(b"")
+    rc = g.main(
+        [
+            "run",
+            "--binary-a",
+            str(bin_path),
+            "--binary-b",
+            str(bin_path),
+            "--engine-a-options",
+            "Threads=4;Hash=64",
+            "--engine-b-options",
+            "Threads=1;Hash=64",
+            "--games",
+            "10",
+            "--dry-run",
+        ]
+    )
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "option.Threads=4" in out
+    assert "option.Threads=1" in out
+
+
+def test_run_subcommand_rejects_malformed_per_side_options(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Malformed --engine-a-options surfaces a clear error (ValueError → exit 2)."""
+    bin_path = tmp_path / "v7_uci"
+    bin_path.write_bytes(b"")
+    rc = g.main(
+        [
+            "run",
+            "--binary-a",
+            str(bin_path),
+            "--binary-b",
+            str(bin_path),
+            "--engine-a-options",
+            "no_separator",
+            "--engine-b-options",
+            "Threads=1",
+            "--dry-run",
+        ]
+    )
+    assert rc != 0
+    # Error message should mention the malformed option string.
+    assert "engine-a-options" in capsys.readouterr().err.lower() or rc == 2
+
+
+# ---------------------------------------------------------------------------
 # Sanity subcommand argument validation
 # ---------------------------------------------------------------------------
 

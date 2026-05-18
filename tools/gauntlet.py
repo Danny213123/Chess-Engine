@@ -73,6 +73,7 @@ from tools.gauntlet_core import (
     build_fastchess_command,
     collect_per_move_nps,
     compute_sanity_verdict,
+    parse_engine_options,
     parse_fastchess_stdout,
     parse_pgn_terminations,
 )
@@ -531,15 +532,122 @@ def write_summary(
 # ---------------------------------------------------------------------------
 
 
-def _run_subcommand_deferred(args: argparse.Namespace) -> int:  # noqa: ARG001
-    """BLOCKER-2 enforcement — D-09 hard deferral with NO escape hatch.
+def _run_subcommand_deferred(args: argparse.Namespace) -> int:
+    """D-09 deferral — narrowed by Plan 04-02 for the self-play case.
 
-    Prints :data:`D9_MESSAGE` to stderr and returns 2. The function takes
-    ``args`` only to match the dispatcher signature; the namespace's
-    contents are intentionally ignored so adding a future flag cannot
-    accidentally bypass the gate.
+    Original BLOCKER-2 contract (Phase 2): always print :data:`D9_MESSAGE`
+    and exit 2; no escape hatch. Phase 4 Plan 04-02 narrows this for the
+    PAR-09 self-play V7-vs-V7 gauntlet, but the narrowing is gated by
+    BOTH per-side option flags being supplied on the CLI — without them
+    the two sides are indistinguishable and the defer must still fire.
+
+    Lift conditions (ALL must hold):
+      1. ``--binary-a`` and ``--binary-b`` both provided (same path = self-play)
+      2. ``--engine-a-options`` AND ``--engine-b-options`` both provided
+         (so the two sides actually differ — e.g. Threads=4 vs Threads=1)
+
+    Anything else (no args; only --binary-a; per-side options missing for
+    one side; V6-vs-V7 cross-binary case) still hits the D-09 message.
+
+    The dispatcher returns the I/O-layer exit code from
+    :func:`_run_self_play_subcommand` when the lift fires, else 2.
     """
-    print(D9_MESSAGE, file=sys.stderr)
+    binary_a = getattr(args, "binary_a", None)
+    binary_b = getattr(args, "binary_b", None)
+    engine_a_options = getattr(args, "engine_a_options", None)
+    engine_b_options = getattr(args, "engine_b_options", None)
+
+    lift_fires = (
+        binary_a is not None
+        and binary_b is not None
+        and engine_a_options is not None
+        and engine_b_options is not None
+    )
+    if not lift_fires:
+        print(D9_MESSAGE, file=sys.stderr)
+        return 2
+
+    return _run_self_play_subcommand(args)
+
+
+def _run_self_play_subcommand(args: argparse.Namespace) -> int:
+    """Plan 04-02 PAR-09 self-play V7-vs-V7 invocation (narrow D-09 lift).
+
+    Behavior:
+      * ``--dry-run`` (Task 1 acceptance criterion): construct the
+        fastchess command using :func:`build_fastchess_command` with the
+        per-side option lists, print the command (space-separated) to
+        stdout, exit 0. No subprocess is spawned, no run dir is created.
+      * Without ``--dry-run``: out of scope for Plan 04-02 (the build host
+        runs the bash one-liner from .continue-here.md, which invokes the
+        sanity orchestration of fastchess directly via this same command).
+        Returns 2 with a hint pointing at the .continue-here.md recipe.
+
+    The dry-run path is what tests/test_gauntlet_io.py exercises and what
+    a developer uses to preview the constructed argv before kicking off
+    the multi-hour SPRT.
+    """
+    try:
+        engine_a_opts = parse_engine_options(args.engine_a_options)
+    except ValueError as exc:
+        print(
+            f"[gauntlet] --engine-a-options {exc}",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        engine_b_opts = parse_engine_options(args.engine_b_options)
+    except ValueError as exc:
+        print(
+            f"[gauntlet] --engine-b-options {exc}",
+            file=sys.stderr,
+        )
+        return 2
+
+    binary_a = Path(args.binary_a)
+    binary_b = Path(args.binary_b)
+
+    # In dry-run we deliberately do NOT call ensure_fastchess() — the dev
+    # host that's previewing the command may not have fastchess installed.
+    # The placeholder path appears verbatim in the dry-run stdout so the
+    # operator can see what would be invoked.
+    fastchess_path = Path("tools/.cache/fastchess")
+    # In dry-run we do NOT create a real run dir; the path is a placeholder
+    # so the constructed argv has stable, recognizable tokens.
+    run_dir = Path(args.output_dir) if args.output_dir else Path(".planning/gauntlets/dry-run")
+    # In dry-run we do NOT resolve the opening book through the network
+    # fallback; the vendored path appears verbatim in stdout.
+    opening_book = Path(args.book)
+
+    engines: Dict[str, Path] = {
+        "engine_a": binary_a,
+        "engine_b": binary_b,
+    }
+    rounds = max(1, args.games // 2)
+    command = build_fastchess_command(
+        fastchess_path=fastchess_path,
+        engines=engines,
+        tc=args.tc,
+        hash_mb=args.hash,
+        threads=1,  # base; per-side options override per-engine
+        run_dir=run_dir,
+        opening_book_path=opening_book,
+        rounds=rounds,
+        sanity_mode=False,  # SPRT mode for PAR-09
+        engine_a_options=engine_a_opts,
+        engine_b_options=engine_b_opts,
+    )
+
+    if args.dry_run:
+        print(" ".join(command))
+        return 0
+
+    print(
+        "[gauntlet] non-dry-run self-play execution is owned by the "
+        ".planning/phases/04-lazy-smp-texel-tuning/.continue-here.md "
+        "PAR-09 recipe — run that bash one-liner on a build host.",
+        file=sys.stderr,
+    )
     return 2
 
 
@@ -651,14 +759,137 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
-    # NOTE: The `run` subcommand intentionally takes NO arguments. Adding
-    # one risks a BLOCKER-2 regression where some future flag becomes an
-    # accidental bypass. The deferred dispatcher ignores the namespace
-    # entirely; keep the parser surface minimal.
+    # NOTE: The `run` subcommand's D-09 defer was originally absolute
+    # (BLOCKER-2). Plan 04-02 narrows it for the PAR-09 self-play case:
+    # the lift fires ONLY when --binary-a, --binary-b, --engine-a-options,
+    # and --engine-b-options are ALL supplied — otherwise the defer still
+    # triggers. A future flag that ALSO must be opt-in stays safe under
+    # this gate as long as the four-arg conjunction guards it.
     run_parser = subparsers.add_parser(
         "run",
         help=(
-            "V7-vs-V6 SPRT (DEFERRED to Phase 3 per D-09 — always exits 2)."
+            "V7-vs-V6 SPRT (DEFERRED) + Plan 04-02 PAR-09 self-play "
+            "V7-vs-V7 (per-side options required for the narrow lift)."
+        ),
+    )
+    run_parser.add_argument(
+        "--binary-a",
+        type=str,
+        default=None,
+        help="Path to engine A UCI binary (self-play: same path as --binary-b).",
+    )
+    run_parser.add_argument(
+        "--binary-b",
+        type=str,
+        default=None,
+        help="Path to engine B UCI binary (self-play: same path as --binary-a).",
+    )
+    run_parser.add_argument(
+        "--engine-a-options",
+        type=str,
+        default=None,
+        dest="engine_a_options",
+        help=(
+            "';'-separated per-side options for engine A "
+            "(e.g. \"Threads=4;Hash=64\"). Required for the PAR-09 lift."
+        ),
+    )
+    run_parser.add_argument(
+        "--engine-b-options",
+        type=str,
+        default=None,
+        dest="engine_b_options",
+        help=(
+            "';'-separated per-side options for engine B "
+            "(e.g. \"Threads=1;Hash=64\"). Required for the PAR-09 lift."
+        ),
+    )
+    run_parser.add_argument(
+        "--games",
+        type=int,
+        default=1000,
+        help="Total games (must be > 0). Defaults to 1000 per CONTEXT D-10.",
+    )
+    run_parser.add_argument(
+        "--tc",
+        type=str,
+        default=DEFAULT_TC,
+        help=f"Time control (fastchess syntax). Defaults to {DEFAULT_TC!r}.",
+    )
+    run_parser.add_argument(
+        "--hash",
+        type=int,
+        default=64,
+        help="Base Hash table size in MiB. Defaults to 64 (Phase 2 alignment).",
+    )
+    run_parser.add_argument(
+        "--book",
+        type=str,
+        default=str(VENDORED_BOOK),
+        help=f"Opening book PGN path. Defaults to {str(VENDORED_BOOK)!r}.",
+    )
+    run_parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=CONCURRENCY,
+        help=(
+            "fastchess --concurrency (D-08a hardcodes to 1; surfaced as a "
+            "no-op flag for recipe readability)."
+        ),
+    )
+    run_parser.add_argument(
+        "--sprt-elo0",
+        type=int,
+        default=SPRT_ELO0,
+        dest="sprt_elo0",
+        help=f"SPRT lower bound (D-12 frozen at {SPRT_ELO0}).",
+    )
+    run_parser.add_argument(
+        "--sprt-elo1",
+        type=int,
+        default=SPRT_ELO1,
+        dest="sprt_elo1",
+        help=f"SPRT upper bound (D-12 frozen at {SPRT_ELO1}).",
+    )
+    run_parser.add_argument(
+        "--sprt-alpha",
+        type=float,
+        default=SPRT_ALPHA,
+        dest="sprt_alpha",
+        help=f"SPRT alpha (D-12 frozen at {SPRT_ALPHA}).",
+    )
+    run_parser.add_argument(
+        "--sprt-beta",
+        type=float,
+        default=SPRT_BETA,
+        dest="sprt_beta",
+        help=f"SPRT beta (D-12 frozen at {SPRT_BETA}).",
+    )
+    run_parser.add_argument(
+        "--pentanomial",
+        action="store_true",
+        default=True,
+        help="Use pentanomial SPRT model (D-12 default; flag present for recipe readability).",
+    )
+    run_parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        dest="output_dir",
+        help=(
+            "Output directory for run artifacts "
+            "(e.g. .planning/gauntlets/phase4-par09). Optional; dry-run prints "
+            "the constructed argv without creating it."
+        ),
+    )
+    run_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        default=False,
+        help=(
+            "Print the constructed fastchess command and exit 0 without "
+            "spawning fastchess (preview path used by tests + the recipe)."
         ),
     )
     run_parser.set_defaults(func=_run_subcommand_deferred)

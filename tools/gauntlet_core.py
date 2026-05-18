@@ -101,9 +101,83 @@ class GauntletError(RuntimeError):
     """
 
 
+# Explicit public API (Plan 04-02 adds parse_engine_options to the export set
+# so the I/O layer's `from tools.gauntlet_core import parse_engine_options`
+# import is the documented contract, not an implementation detail).
+__all__ = [
+    "BENCH_FEN",
+    "BENCH_MOVETIME_MS",
+    "CONCURRENCY",
+    "DEFAULT_TC",
+    "GauntletError",
+    "OTHER_NONNORMAL_PATTERNS",
+    "SANITY_TOLERANCE_ELO",
+    "SPRT_ALPHA",
+    "SPRT_BETA",
+    "SPRT_ELO0",
+    "SPRT_ELO1",
+    "TIME_FORFEIT_PATTERNS",
+    "build_fastchess_command",
+    "collect_per_move_nps",
+    "compute_sanity_verdict",
+    "parse_engine_options",
+    "parse_fastchess_stdout",
+    "parse_pgn_terminations",
+]
+
+
 # ---------------------------------------------------------------------------
 # Command builder (RESEARCH §2 literal token order)
 # ---------------------------------------------------------------------------
+
+
+def parse_engine_options(opts_str: str) -> List[Tuple[str, str]]:
+    """Parse a ``;``-separated per-side options string into ``(name, value)`` pairs.
+
+    Plan 04-02 Task 1 — per-side option forwarding for PAR-09 self-play
+    (V7 4t vs V7 1t). Pure function; no I/O.
+
+    Format::
+
+        "Threads=4;Hash=64"  ->  [("Threads", "4"), ("Hash", "64")]
+        ""                    ->  []
+
+    Separator choice: ``;`` (not ``,``). Rationale: comma reads ambiguously
+    inside option values that themselves are comma-separated lists, and
+    fastchess never expects commas inside an ``option.X=Y`` token.
+
+    Raises:
+        ValueError: when any pair is missing ``=``, has an empty name, or
+            has an empty value. Validates each pair independently so a
+            partial failure (one good pair + one malformed) surfaces clearly.
+    """
+    if not opts_str:
+        return []
+    out: List[Tuple[str, str]] = []
+    for raw in opts_str.split(";"):
+        pair = raw.strip()
+        if not pair:
+            # Trailing semicolon — be permissive and skip empty segments
+            # rather than error, but the empty-string case above already
+            # short-circuited so an empty pair here means stray ";".
+            continue
+        if "=" not in pair:
+            raise ValueError(
+                f"malformed engine option {pair!r}: missing '=' separator"
+            )
+        name, _, value = pair.partition("=")
+        name = name.strip()
+        value = value.strip()
+        if not name:
+            raise ValueError(
+                f"malformed engine option {raw!r}: empty option name"
+            )
+        if not value:
+            raise ValueError(
+                f"malformed engine option {raw!r}: empty option value"
+            )
+        out.append((name, value))
+    return out
 
 
 def build_fastchess_command(
@@ -117,6 +191,8 @@ def build_fastchess_command(
     opening_book_path: Path,
     rounds: int,
     sanity_mode: bool,
+    engine_a_options: Optional[List[Tuple[str, str]]] = None,
+    engine_b_options: Optional[List[Tuple[str, str]]] = None,
 ) -> List[str]:
     """Return the literal fastchess argv list per RESEARCH §2.
 
@@ -126,11 +202,19 @@ def build_fastchess_command(
     like ``elo0=0`` / ``-concurrency 1`` / ``-sprt``. Use f-strings that
     interpolate the SPRT_* constants so any future bound change is one
     line and the grep gate catches an accidental float drift.
+
+    Plan 04-02 Task 1 — ``engine_a_options`` / ``engine_b_options`` append
+    additional ``option.<name>=<value>`` tokens to the FIRST / SECOND
+    ``-engine`` block respectively, so the PAR-09 self-play gauntlet can
+    differentiate the two V7 sides (Threads=4 vs Threads=1). ``None``
+    defaults preserve the Phase 2 V6-vs-V7 / V6-vs-V6 argv byte-for-byte
+    (backwards-compat — verified by ``test_backwards_compat_no_per_side_options_unchanged``).
     """
     cmd: List[str] = [str(fastchess_path)]
 
     # -engine blocks in caller's dict order (Python 3.7+ preserves insertion)
-    for name, binary_path in engines.items():
+    per_side = [engine_a_options, engine_b_options]
+    for idx, (name, binary_path) in enumerate(engines.items()):
         cmd.extend(
             [
                 "-engine",
@@ -140,6 +224,12 @@ def build_fastchess_command(
                 f"option.Threads={threads}",
             ]
         )
+        # Per-side extra options (Plan 04-02). Only the first two engines
+        # receive a/b option blocks — additional engines (e.g. tournaments
+        # with >2 sides) are out of scope for this milestone.
+        if idx < len(per_side) and per_side[idx]:
+            for opt_name, opt_value in per_side[idx]:
+                cmd.append(f"option.{opt_name}={opt_value}")
 
     cmd.extend(["-each", f"tc={tc}"])
     cmd.extend(
