@@ -97,7 +97,11 @@
   4. One full Texel tuning run produces a non-default `coeffs.json` whose values are reproducible from the Zurichess dataset (K fit once, persisted alongside JSON; train/validation losses both decrease then plateau without divergence)
   5. `eval_quiet(starting_pos)` returns identical values from the Python tuner harness and the C++ search binary on the same coefficient set — proves the codegen single-source-of-truth pipeline is wired correctly (no name mismatches)
   6. Tuned V7 wins a gauntlet vs untuned-V7-with-same-search-stack by a clearly measurable Elo margin
-**Plans**: TBD
+**Plans**: 4 plans
+  - [ ] 04-01-PLAN.md — Lazy SMP implementation: ThreadPool + Worker struct + per-thread state lift + depth-stagger + Threads UCI option + PAR-07/08 sentinels (PAR-04..08)
+  - [ ] 04-02-PLAN.md — PAR-09 self-play gauntlet recipe (4t vs 1t >=500 games pentanomial SPRT, build-host deferred gate) + per-side --engine-a/b-options surface in gauntlet.py (PAR-09)
+  - [ ] 04-03-PLAN.md — Texel pipeline: vendor texel-tuner + v7_eval_static CMake target + Zurichess fetcher + quiet-position filter + golden-section K-fit + ADAM/L2/sparse + multi-seed driver + SC#5 eval parity test (TUNE-01..08, SC#5)
+  - [ ] 04-04-PLAN.md — Margin rescale + seed-decider + SC#6 mini-gauntlet + TUNE-10 ship-checkpoint (TUNE-09, TUNE-10, SC#6)
 
 ### Phase 5: Final Gauntlet + Ship
 **Goal**: Run the explicit ship-signal gauntlet from PROJECT.md — V7 vs V6 at production thread count, identical Hash/Threads/TC, ≥1000-game pentanomial SPRT, repeated as ≥2 independent runs to rule out variance. Execute the "Looks Done But Isn't" checklist from PITFALLS.md. Update README with Syzygy download note and thread config. Pronounce ship verdict.
