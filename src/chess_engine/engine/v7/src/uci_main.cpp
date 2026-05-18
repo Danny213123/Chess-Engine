@@ -136,6 +136,8 @@ int main() {
                       << "option name UseRFP type check default true\n"
                       << "option name UseRecaptureExt type check default true\n"
                       << "option name UseSingular type check default true\n"
+                      // Plan 04-01 D-04 — Lazy SMP thread count (alphabetical: T < U)
+                      << "option name Threads type spin default 1 min 1 max 256\n"
                       << "uciok" << std::endl;
         } else if (cmd == "isready") {
             std::cout << "readyok" << std::endl;

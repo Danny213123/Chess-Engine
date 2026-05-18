@@ -104,6 +104,7 @@ set(V7_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/perft.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/search.cpp     # Plan 03 fills (currently stub)
     ${CMAKE_CURRENT_SOURCE_DIR}/src/engine.cpp     # Plan 03 fills (currently stub)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/thread_pool.cpp # Plan 04-01: Lazy SMP ThreadPool implementation
     ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.cpp       # Plan 04 fills (currently stub)
     ${COEFFS_CPP}                                  # Plan 04 generates via add_custom_command
     ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp     # Plan 05 fills (currently stub)
@@ -142,6 +143,7 @@ add_executable(v7_uci
     ${CMAKE_CURRENT_SOURCE_DIR}/src/perft.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/search.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/engine.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/thread_pool.cpp  # Plan 04-01: Lazy SMP ThreadPool
     ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.cpp
     ${COEFFS_CPP}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy.cpp

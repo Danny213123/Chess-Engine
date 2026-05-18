@@ -61,6 +61,10 @@ PYBIND11_MODULE(v7_engine, m) {
         .def("nodes", &v7::Engine::nodes)
         .def("set_option", &v7::Engine::set_option,
              py::arg("name"), py::arg("value"))
+        // Plan 04-01 D-04 — test-only Threads accessor.
+        // Returns options_.Threads so test_v7_lazy_smp.py + test_v7_uci_threads.py
+        // can verify the Threads UCI option without inspecting private members.
+        .def("thread_count", &v7::Engine::thread_count)
         // Plan 03-03 SRCH-07: test-only accessors for history tables.
         // Named peek_* to signal they are read-only introspection methods,
         // not part of the production search API.

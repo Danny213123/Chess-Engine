@@ -43,6 +43,9 @@ struct EngineOptions {
     // Endgame (Plan 03-04 consumer)
     bool UseFortressEval = false;  // D-11: conservative fortress hints; default OFF,
                                    // ship as ON only if Plan 03-04 validation gauntlet passes
+
+    // Plan 04-01 D-04 — Lazy SMP thread count (valid range [1, 256])
+    int Threads = 1;  // default 1 = single-threaded (Threads=N spawns N-1 helper threads)
 };
 
 } // namespace v7

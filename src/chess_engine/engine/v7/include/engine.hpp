@@ -16,6 +16,19 @@
 //   - void age_history()         — right-shift history by 1 per search call (RESEARCH A11)
 //   - void set_option(name,value)— D-06 dispatcher (Task 2 implements)
 //
+// Plan 04-01 additions (D-01, D-02, D-04) — Lazy SMP:
+//   - ThreadPool pool_  — persistent cv-wake pool of N-1 helper threads (D-01)
+//   - Worker worker0_   — main thread's own Worker (holds the per-thread tables
+//     that were previously direct Engine members: history_, counter_moves_,
+//     continuation_history_, capture_history_, search_stack_; board_ and rep_stack_
+//     also now live in worker0_ for consistency; see thread_pool.hpp for Worker layout)
+//   - board_ and rep_stack_ remain as direct Engine members for root-seeding
+//     (rep_stack_ is pushed by Engine::search before pool_.start_search so each
+//     worker.rep_stack is initialized with the root hash)
+//   - int thread_count() const — test-only accessor returning options_.Threads
+//   - peek_* accessors route through worker0_ (minimum-blast-radius refactor
+//     so test_v7_history.py keeps passing without edits)
+//
 // Build-order note: `#include "syzygy.hpp"` resolves at compile time because
 // plan 05 lands include/syzygy.hpp in the same Wave 3; if plan 05's file is
 // missing when this header compiles, the build fails fast — the correct
@@ -26,6 +39,7 @@
 #include "board.hpp"
 #include "search.hpp"         // for v7::RepStack, v7::SearchStack, v7::SearchInfo (Plan 03)
 #include "syzygy.hpp"         // for v7::SyzygyState (Plan 05 sibling — same wave)
+#include "thread_pool.hpp"    // Plan 04-01: ThreadPool + Worker struct
 #include "tt.hpp"
 #include "types.hpp"
 #include "search/options.hpp" // D-06: EngineOptions with 12 UCI toggles (Plan 03-01 Task 2)
@@ -62,15 +76,20 @@ public:
     void set_syzygy_path(const std::string& path);
 
     // new_game: resets atomics, clears the TT, clears the repetition stack,
-    // AND zeros history/counter_moves (Plan 03-01 D-03). Body in src/engine.cpp.
+    // AND zeros history/counter_moves (Plan 03-01 D-03).
+    // Plan 04-01: also zeros per-worker tables in worker0_ (and any helpers).
+    // Body in src/engine.cpp.
     void new_game();
 
     // search: real iterative-deepening body. Body lives in src/engine.cpp.
+    // Plan 04-01: internally drives ThreadPool + returns worker0_ result.
+    // Signature unchanged (RESEARCH Open Question 3 RESOLVED).
     SearchResult search(const std::string& fen, int depth, int time_ms);
 
-    // set_option: D-06 UCI toggle dispatcher — recognizes all 12 D-06 names.
+    // set_option: D-06 UCI toggle dispatcher — recognizes all 12 D-06 names
+    // plus the Plan 04-01 D-04 "Threads" option (clamped to [1, 256]).
     // Unknown names emit "info string Unknown option: <name>"; no throw.
-    // Body lives in src/engine.cpp (Task 2).
+    // Body lives in src/engine.cpp.
     void set_option(const std::string& name, const std::string& value);
 
     // stop: flips the atomic stop flag. Fast — the binding does NOT release
@@ -82,6 +101,14 @@ public:
     uint64_t tbhits() const { return syzygy_.tbhits(); }
 
     uint64_t nodes() const { return nodes_.load(std::memory_order_relaxed); }
+
+    // ------------------------------------------------------------------
+    // Plan 04-01 D-04 — test-only accessor for Threads option.
+    // Returns options_.Threads. Used by tests/test_v7_lazy_smp.py and
+    // tests/test_v7_uci_threads.py to verify the Threads UCI option
+    // without inspecting private members.
+    // ------------------------------------------------------------------
+    int thread_count() const { return options_.Threads; }
 
     // ------------------------------------------------------------------
     // Plan 03-05 — test-only TT introspection surface (PAR-01/02).
@@ -110,65 +137,66 @@ public:
     uint64_t      tt_misses()      const { return tt_.misses(); }
 
 private:
+    // -------------------------------------------------------------------------
+    // Shared state (PAR-05 literal: the ONLY state accessible from all workers)
+    // -------------------------------------------------------------------------
     std::atomic<bool>     stop_flag_{false};
     std::atomic<uint64_t> nodes_{0};
 
-    TT          tt_{64};           // 64MB transposition table (matches V6 default)
-    Board       board_;            // single working board; reset per search via from_fen
-    RepStack    rep_stack_;        // Plan 03 — Engine-owned repetition stack (NOT on Board;
-                                   // perft-clean invariant per checker issue #3)
-    SyzygyState syzygy_;           // Plan 05 — Syzygy tablebase state owned here so the
-                                   // include/engine.hpp file has exactly one Wave-3 owner
+    TT          tt_{64};           // 64MB lockless XOR TT (Plan 03-05; shared by all workers)
+    RepStack    rep_stack_;        // Engine-owned root rep stack — seeded before each search;
+                                   // each worker gets its own copy in Worker::rep_stack
+    SyzygyState syzygy_;           // Plan 05 — Syzygy tablebase state (shared, read-only during search)
 
-    // D-03 Plan 03-01 additions — persistent search state:
-    SearchStack search_stack_;     // Triangular PV + per-ply killers + excluded_move
-                                   // (Bug #2 + Bug #3 fix; zero-initialized by default ctor)
-    int  history_[2][64][64] = {}; // History heuristic [side][from][to] (D-03 Bug #2)
-                                   // Halved by age_history() before each search call (RESEARCH A11)
-    Move counter_moves_[2][64][64] = {};  // Counter-move heuristic [side_that_moved][from][to]
-                                          // Consumed by Plan 03-02; zero = MOVE_NONE per types.hpp
-
-    // Plan 03-03 SRCH-07: continuation history and capture history tables.
+    // -------------------------------------------------------------------------
+    // Plan 04-01: ThreadPool + main-thread Worker
     //
-    // continuation_history_[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to]:
-    //   1-ply-back continuation table (RESEARCH.md D2 §3.5).
-    //   Dimensions: 2 * 6 * 64 * 2 * 6 * 64 = 589,824 ints ≈ 2.3 MB.
-    //   Rationale for 1-ply-back form: simpler indexing than full 4-ply chain;
-    //   captures the most informative history signal (previous move context).
-    //   Incremented by depth*depth on quiet beta-cutoff. Right-shift-1 on new_search().
+    // worker0_  = main thread's Worker — holds the per-thread search tables that
+    //   were previously direct Engine members (history_, counter_moves_, etc.).
+    //   worker0_.worker_id = 0 (never applies depth-stagger).
     //
-    // capture_history_[stm][piece][to][captured]:
-    //   Indexed by attacking side, attacker piece, destination square, captured piece.
-    //   Dimensions: 2 * 6 * 64 * 6 = 4,608 ints ≈ 18 KB.
-    //   Incremented by depth*depth on capture beta-cutoff. Right-shift-1 on new_search().
-    int continuation_history_[2][6][64][2][6][64] = {};
-    int capture_history_[2][6][64][6] = {};
+    // pool_     = helper thread pool (N-1 helpers for Threads=N).
+    //   pool_.workers_ and pool_.threads_ are the helper Workers and threads.
+    //
+    // The table fields PREVIOUSLY on Engine (history_[2][64][64], etc.) are
+    // now IN worker0_ as worker0_.history, worker0_.counter_moves, etc.
+    // The peek_* accessors below route through worker0_ for test compatibility.
+    // -------------------------------------------------------------------------
+    Worker      worker0_;          // Main thread's per-thread state
+    ThreadPool  pool_;             // Helper thread pool (empty at Threads=1)
 
+    // -------------------------------------------------------------------------
     // D-06 Plan 03-01 Task 2 — UCI option toggles (12 refinement gates)
-    EngineOptions options_;        // Defaults: all Tier-1/2 ON, UseFortressEval OFF (D-11)
+    // Plan 04-01 D-04: adds Threads field to EngineOptions.
+    // -------------------------------------------------------------------------
+    EngineOptions options_;        // Defaults: all Tier-1/2 ON, UseFortressEval OFF, Threads=1
 
     // age_history: decay history by right-shift-1 before each iterative_deepening
     // call (Stockfish-style per-search aging, RESEARCH.md A11). Called from Engine::search.
-    // Plan 03-03: also ages continuation_history_ and capture_history_.
+    // Plan 04-01: ages worker0_ tables (helpers have fresh-zeroed tables per search).
     void age_history();
 
+    // -------------------------------------------------------------------------
+    // peek_* test-only accessors — re-routed through worker0_ (Plan 04-01)
+    // so test_v7_history.py keeps passing without edits.
+    // Minimum-blast-radius refactor: only the routing target changes.
+    // -------------------------------------------------------------------------
+
     // peek_history: test-only accessor for the main history table.
-    // Returns history_[side][from][to]. Used by test_v7_history.py to
-    // verify accumulation and aging without a debug build flag.
+    // Returns worker0_.history[side][from][to].
     int peek_history(int side, int from, int to) const {
-        return history_[side][from][to];
+        return worker0_.history[side][from][to];  // was: history_[side][from][to]
     }
 
     // peek_continuation_history: test-only accessor.
-    // Returns continuation_history_[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to].
     int peek_continuation_history(int stm, int prev_piece, int prev_to,
                                   int stm_now, int curr_piece, int curr_to) const {
-        return continuation_history_[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to];
+        return worker0_.continuation_history[stm][prev_piece][prev_to][stm_now][curr_piece][curr_to];
     }
 
     // peek_capture_history: test-only accessor.
     int peek_capture_history(int stm, int piece, int to, int captured) const {
-        return capture_history_[stm][piece][to][captured];
+        return worker0_.capture_history[stm][piece][to][captured];
     }
 };
 

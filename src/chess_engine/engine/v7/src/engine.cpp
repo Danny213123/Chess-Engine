@@ -68,32 +68,44 @@ void Engine::new_game() {
     // detection inside this new game's tree.
     rep_stack_.clear();
 
-    // D-03 Plan 03-01 Bug #2 fix — reset persistent history and counter_moves.
-    // std::memset(0) on int arrays is well-defined (sets all bits to zero,
-    // which equals integer 0). On Move arrays, MOVE_NONE == 0 (types.hpp),
-    // so memset(0) correctly initializes all counter_moves to MOVE_NONE.
-    // SearchStack PV/killers/excluded reset is a no-op here: the stack is
-    // stack-owned (Engine member), and alpha_beta initializes pv_length[ply]=0
-    // at every entry point before using pv[ply][*].
-    std::memset(history_,      0, sizeof(history_));
-    std::memset(counter_moves_, 0, sizeof(counter_moves_));
+    // Plan 04-01 D-03 — zero per-thread tables in worker0_ and all pool workers.
+    //
+    // Pre-04-01 code memset'd Engine-owned history_/counter_moves_/etc. directly.
+    // Those fields have moved into Worker (value-typed copies, Pitfall 1 mitigation).
+    // new_game() now iterates over worker0_ (main thread) and all pool helpers.
+    //
+    // std::memset(0) on int arrays is well-defined. Move (uint16_t) MOVE_NONE == 0,
+    // so memset(0) correctly initializes counter_moves to MOVE_NONE.
+    auto zero_worker = [](Worker& w) {
+        std::memset(w.history,              0, sizeof(w.history));
+        std::memset(w.counter_moves,        0, sizeof(w.counter_moves));
+        std::memset(w.continuation_history, 0, sizeof(w.continuation_history));
+        std::memset(w.capture_history,      0, sizeof(w.capture_history));
+    };
 
-    // Plan 03-03 SRCH-07: reset continuation history and capture history tables.
-    std::memset(continuation_history_, 0, sizeof(continuation_history_));
-    std::memset(capture_history_,      0, sizeof(capture_history_));
+    // Zero main-thread worker
+    zero_worker(worker0_);
+
+    // Zero each helper worker in the pool
+    for (int i = 0; i < pool_.worker_count(); ++i) {
+        zero_worker(pool_.get_worker(i));
+    }
 }
 
 // age_history: decay history values by right-shifting each entry once per
 // search call (Stockfish-style per-search aging, RESEARCH.md A11). This
 // prevents old search scores from dominating future move ordering while
 // preserving directional signal from recent cutoffs.
-// Plan 03-03: also ages continuation_history_ and capture_history_.
+// Plan 03-03: also ages continuation_history and capture_history.
+// Plan 04-01: ages worker0_ tables only. Helper workers start each search
+//             with fresh-zeroed tables (wired in thread_pool.cpp::wire_worker_info)
+//             so their decay is implicit (they start from zero each search).
 void Engine::age_history() {
-    // Main history: [side][from][to]
+    // Main history: worker0_.history[side][from][to]
     for (int s = 0; s < 2; ++s) {
         for (int from = 0; from < 64; ++from) {
             for (int to = 0; to < 64; ++to) {
-                history_[s][from][to] >>= 1;  // D-03: aging — halve each entry
+                worker0_.history[s][from][to] >>= 1;  // D-03: aging — halve each entry
             }
         }
     }
@@ -105,7 +117,7 @@ void Engine::age_history() {
                 for (int stm2 = 0; stm2 < 2; ++stm2) {
                     for (int cp = 0; cp < 6; ++cp) {
                         for (int ct = 0; ct < 64; ++ct) {
-                            continuation_history_[stm][pp][pt][stm2][cp][ct] >>= 1;
+                            worker0_.continuation_history[stm][pp][pt][stm2][cp][ct] >>= 1;
                         }
                     }
                 }
@@ -118,7 +130,7 @@ void Engine::age_history() {
         for (int piece = 0; piece < 6; ++piece) {
             for (int to = 0; to < 64; ++to) {
                 for (int cap = 0; cap < 6; ++cap) {
-                    capture_history_[stm][piece][to][cap] >>= 1;
+                    worker0_.capture_history[stm][piece][to][cap] >>= 1;
                 }
             }
         }
@@ -132,101 +144,114 @@ SearchResult Engine::search(const std::string& fen, int depth, int time_ms) {
     // FOUND-04 — drop any stop request from a PREVIOUS search before starting.
     // Without this, a stop() landing between two consecutive search() calls
     // would silently cancel the second search at its first poll. We clear
-    // *before* the SearchInfo::reset() below so its external_stop propagation
-    // reads the fresh `false`.
+    // *before* the per-worker SearchInfo::reset() calls so external_stop
+    // propagation reads the fresh `false`.
     // -------------------------------------------------------------------------
     stop_flag_.store(false, std::memory_order_relaxed);
 
-    // Parse FEN into the working board. Board::from_fen recomputes the
-    // Zobrist hash, which we need before pushing onto rep_stack_.
-    board_.from_fen(fen);
-
-    // SRCH-14 — seed the repetition stack with the ROOT position. Each child
-    // make_move inside alpha_beta pushes the post-move hash and unmake pops;
-    // having the root pre-pushed means the in-tree repetition check at any
-    // ply correctly sees the root as one of the candidate prior positions.
+    // SRCH-14 — seed the ENGINE-OWNED rep_stack_ with the root position.
+    // Each worker receives a COPY of this stack (see thread_pool.cpp
+    // wire_worker_info: `w.rep_stack = *w.shared_rep_stack`). This way the
+    // main rep_stack_ is the seeding source; worker push/pop is local.
     rep_stack_.clear();
-    rep_stack_.push(board_.hash);
+    {
+        Board root_board;
+        root_board.from_fen(fen);
+        rep_stack_.push(root_board.hash);
+    }
 
-    // -------------------------------------------------------------------------
-    // SearchInfo wiring (Plan 03-01 D-01, D-03):
-    //   - external_stop -> &stop_flag_     (FOUND-04, Python-side cancellation)
-    //   - rep_stack     -> &rep_stack_     (SRCH-14, Engine-owned RepStack)
-    //   - soft/hard deadlines from TimeManager (SRCH-15, ≥10% safety margin)
-    //   - tt            -> &tt_            (D-01: replaces g_tt global reference)
-    //   - search_stack  -> &search_stack_  (D-03 Bug #2+#3: triangular PV + killers)
-    //   - history       -> &history_       (D-03 Bug #2: persistent history table)
-    //   - counter_moves -> &counter_moves_ (Plan 03-02 counter-move heuristic)
-    //   - options       -> &options_       (D-06: UCI toggle struct — Task 2)
-    // -------------------------------------------------------------------------
-    SearchInfo info;
-    info.external_stop = &stop_flag_;
-    info.rep_stack     = &rep_stack_;
-    info.time_limit_ms = time_ms;
-
-    // D-01: wire TT non-owning pointer — migrates g_tt global per PATTERNS.md Shared Pattern 4
-    info.tt = &tt_;
-
-    // D-03: wire persistent search state pointers
-    info.search_stack  = &search_stack_;
-    info.history       = &history_;         // int (*)[64][64] — pointer to history_[2]...
-    info.counter_moves = &counter_moves_;   // Move (*)[64][64] — pointer to counter_moves_[2]...
-
-    // D-06: wire options pointer (Task 2; consumed by Plans 03-02/03/04)
-    info.options = &options_;
-
-    // Plan 03-03 SRCH-07: wire continuation/capture history non-owning pointers.
-    info.continuation_history = &continuation_history_;
-    info.capture_history      = &capture_history_;
+    // D-03 Bug #1 fix: compute iteration cap once.
+    int max_depth = std::min(std::max(depth, 1), MAX_PLY - 1);
 
     // SRCH-15 — TimeManager allocates a per-move budget with the ≥10% safety
-    // clamp. time_ms here is the entire remaining budget for this single
-    // move; the upstream game manager / gauntlet owns longer-horizon
-    // allocation. moves_to_go=1 makes the clamp the binding constraint.
+    // clamp. time_ms here is the entire remaining budget for this single move.
     TimeManager tm = TimeManager::allocate(time_ms, /*increment_ms=*/0,
                                            /*moves_to_go=*/1);
-    info.soft_deadline_ms = tm.soft_deadline_ms;
-    info.hard_deadline_ms = tm.hard_deadline_ms;
-
-    info.reset();   // sets start_time and propagates external_stop into stopped
-
-    // D-03 Bug #1 fix: split info.depth = max_depth into two distinct fields.
-    // info.max_depth = caller's upper bound (never overwritten by search loop).
-    // info.depth = 0 = per-iteration counter (written by iterative_deepening).
-    // Without this split, iterative_deepening's `info.depth = depth` loop line
-    // silently overwrote the caller's max_depth cap — causing the engine to
-    // keep searching past the intended ceiling (Phase 1 perf bug #1).
-    int max_depth = std::min(std::max(depth, 1), MAX_PLY - 1);
-    info.max_depth = max_depth;  // D-03 Bug #1 fix: new field; replaces `info.depth = max_depth`
-    info.depth     = 0;          // reset iteration counter (iterative_deepening writes this)
 
     // Mark a new TT generation so the replacement strategy distinguishes
     // entries from this search from prior searches' leftovers.
-    // D-01: call via info.tt (not g_tt) to validate the pointer contract.
-    info.tt->new_search();
+    tt_.new_search();
 
     // D-03 Bug #2: decay history heuristic before each search call (RESEARCH A11).
-    // Aging runs AFTER reset() so history is not zeroed, and BEFORE
-    // iterative_deepening so the first depth-1 iteration sees decayed values.
+    // Aging runs BEFORE distributing work so the first depth-1 iteration sees
+    // decayed values. Only worker0_ tables are aged — helpers start fresh each search.
     age_history();
 
-    // Run the iterative deepening loop. Returns SearchResultFull; we
-    // translate to the pybind11-facing SearchResult below.
-    SearchResultFull full = iterative_deepening(board_, info, /*verbose=*/false);
+    // -------------------------------------------------------------------------
+    // Plan 04-01 D-01: Wire worker0_ shared pointers (done ONCE per search
+    // call; thread_pool.cpp wire_worker_info does the same for helper workers).
+    //
+    // Shared state (PAR-05 literal — the ONLY state accessible from all workers):
+    //   external_stop -> &stop_flag_     (FOUND-04, Python-side cancellation)
+    //   tt            -> &tt_            (D-01: lockless Hyatt-Mann TT)
+    //   options       -> &options_       (D-06: UCI toggle struct, read-only during search)
+    //   shared_syzygy -> &syzygy_        (Plan 05: read-only during search)
+    //   shared_rep_stack -> &rep_stack_  (seeded above; workers copy this before search)
+    //
+    // Per-worker state (value-typed in Worker — Pitfall 1 mitigation):
+    //   history, counter_moves, continuation_history, capture_history, search_stack
+    //   (wire_worker_info sets these from the Worker's own value-typed arrays)
+    // -------------------------------------------------------------------------
+    worker0_.shared_tt        = &tt_;
+    worker0_.shared_stop      = &stop_flag_;
+    worker0_.shared_options   = &options_;
+    worker0_.shared_syzygy    = &syzygy_;
+    worker0_.shared_rep_stack = &rep_stack_;
+    worker0_.worker_id        = 0;  // main thread — no depth-stagger
+
+    // Wire helper workers' shared pointers before broadcasting the search.
+    for (int i = 0; i < pool_.worker_count(); ++i) {
+        Worker& hw = pool_.get_worker(i);
+        hw.shared_tt        = &tt_;
+        hw.shared_stop      = &stop_flag_;
+        hw.shared_options   = &options_;
+        hw.shared_syzygy    = &syzygy_;
+        hw.shared_rep_stack = &rep_stack_;
+        hw.worker_id        = i + 1;  // helpers: 1..N-1
+    }
+
+    // Build the SearchSpec POD passed to ThreadPool.
+    SearchSpec spec;
+    spec.fen              = fen;
+    spec.depth            = depth;
+    spec.time_ms          = time_ms;
+    spec.max_depth        = max_depth;
+    spec.soft_deadline_ms = tm.soft_deadline_ms;  // SRCH-15: iteration gate for worker0_
+    spec.hard_deadline_ms = tm.hard_deadline_ms;  // SRCH-15: mid-iter cutoff for worker0_
+
+    // Kick off helpers AND run worker0_ inline (ThreadPool::start_search).
+    // This blocks until worker0_ finishes (iterative_deepening returns).
+    // Helpers run concurrently; main thread is worker0_.
+    pool_.start_search(spec, worker0_);
+
+    // After main thread finishes, wait for all helpers to complete.
+    pool_.wait_for_all();
 
     // Pop the root hash we seeded above. Symmetry with the push keeps
     // rep_stack_.top stable across repeated search() calls on the same Engine.
     rep_stack_.pop();
 
+    // Sum node counts from all workers (worker0_ nodes + helpers).
+    uint64_t total_nodes = worker0_.info.nodes.load(std::memory_order_relaxed);
+    for (int i = 0; i < pool_.worker_count(); ++i) {
+        total_nodes += pool_.get_worker(i).info.nodes.load(std::memory_order_relaxed);
+    }
+
     // Mirror the per-search node count into the Engine atomic so Python-side
     // `Engine.nodes()` reflects the work done by the most-recent search.
-    nodes_.store(full.nodes, std::memory_order_relaxed);
+    nodes_.store(total_nodes, std::memory_order_relaxed);
+
+    // Canonical result: worker0_'s result (main thread).
+    // Standard Lazy SMP pick: main thread explored the most deeply (no stagger);
+    // helpers only seeded the TT for the next iteration (RESEARCH Open Question 3 RESOLVED).
+    SearchResultFull& full = worker0_.result;
+    full.nodes = total_nodes;  // Update node count to reflect total across all workers
 
     SearchResult r;
     r.best_move = full.best_move;
     r.score     = full.score;
     r.depth     = full.depth;
-    r.nodes     = full.nodes;
+    r.nodes     = total_nodes;
     r.time_ms   = full.time_ms;
     r.nps       = full.nps();
     return r;
@@ -336,6 +361,23 @@ void Engine::set_option(const std::string& name, const std::string& value) {
             return;
         }
         options_.UseFortressEval = bool_val;  // D-06 + D-11
+    } else if (name_eq("Threads")) {
+        // Plan 04-01 D-04 — Lazy SMP thread count.
+        // Parse as int; reject non-integer and out-of-range values with info string.
+        // Accepted range: [1, 256] per CONTEXT D-04 + T-04-01 threat mitigation.
+        int n = 0;
+        try {
+            n = std::stoi(value);
+        } catch (const std::exception&) {
+            std::cout << "info string Invalid value for Threads: " << value << std::endl;
+            return;
+        }
+        if (n < 1 || n > 256) {
+            std::cout << "info string Threads out of range [1,256]: " << value << std::endl;
+            return;
+        }
+        options_.Threads = n;
+        pool_.resize(n);
     } else {
         // Unknown option — emit info string but do not throw (UCI convention)
         std::cout << "info string Unknown option: " << name << std::endl;
