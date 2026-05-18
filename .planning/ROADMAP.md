@@ -80,7 +80,7 @@
 - [x] 03-02-PLAN.md — Wave 2: tier-1 search refinements (adaptive null-move+zugzwang, LMR two-level re-search, RFP/futility/LMP, staged move picker, IIR, recapture extension) + 8 UCI toggles + tier-1 mini-gauntlet (SRCH-03/04/05/06/11/12)
 - [x] 03-03-PLAN.md — Wave 2: tier-2 search refinements (continuation+capture history, singular extensions, multi-cut, ProbCut) + tier-2 mini-gauntlet with ProbCut bisection (SRCH-07/08/09/10)
 - [x] 03-04-PLAN.md — Wave 2: endgame (KPK codegen + Fathom oracle, opposition, wrong-bishop+RP, 0..256 phase blend, fortress behind UseFortressEval toggle) + KPK Fathom cross-check + endgame & fortress validation gauntlets (ENDG-01..05)
-- [ ] 03-05-PLAN.md — Wave 2: lockless Hyatt-Mann XOR TT (std::atomic<uint64_t> xkey/data, memory_order_relaxed, age-then-depth replacement) + TSan stress harness (tt_tsan_stress + scripts/tt_tsan_stress.sh) + TSan 16t×60s blocking gate (PAR-01/02/03)
+- [x] 03-05-PLAN.md — Wave 2: lockless Hyatt-Mann XOR TT (std::atomic<uint64_t> xkey/data, memory_order_relaxed, age-then-depth replacement) + TSan stress harness (tt_tsan_stress + scripts/tt_tsan_stress.sh) + TSan 16t×60s blocking gate (PAR-01/02/03)
 - [ ] 03-06-PLAN.md — Wave 3: ship-SPRT vs baseline-phase3 (≥30 Elo, 95% CI) + full TSan rerun + NPS sentinel reconfirmation + REQUIREMENTS.md disposition + Phase 3 retrospective + phase-03-shipped tag
 
 ### Phase 4: Lazy SMP + Texel Tuning
@@ -118,7 +118,7 @@
 |-------|----------------|--------|-----------|
 | 1. Skeleton + Smoke | 0/6 | Planned | - |
 | 2. Gauntlet Harness Early | 3/6 | In Progress|  |
-| 3. Lockless TT + Search Refinements + Endgame | 0/6 | Planned | - |
+| 3. Lockless TT + Search Refinements + Endgame | 5/6 | In Progress|  |
 | 4. Lazy SMP + Texel Tuning | 0/? | Not started | - |
 | 5. Final Gauntlet + Ship | 0/? | Not started | - |
 
