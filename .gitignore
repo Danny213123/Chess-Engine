@@ -74,6 +74,7 @@ src/chess_engine/engine/v6/v6_engine*.dylib
 src/chess_engine/engine/v7/src/coeffs.cpp
 src/chess_engine/engine/v7/src/kpk_bitbase.cpp
 src/chess_engine/engine/v7/build/
+src/chess_engine/engine/v7/build-tsan/
 src/chess_engine/engine/v7/v7_engine*.so
 src/chess_engine/engine/v7/v7_engine*.pyd
 src/chess_engine/engine/v7/v7_engine*.dylib

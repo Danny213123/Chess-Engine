@@ -342,4 +342,37 @@ void Engine::set_option(const std::string& name, const std::string& value) {
     }
 }
 
+// =============================================================================
+// Plan 03-05 — test-only TT introspection surface (PAR-01 / PAR-02).
+// =============================================================================
+//
+// Thin pass-through wrappers around Engine::tt_ so the lockless TT can be
+// exercised end-to-end via the pybind11 module (tests/test_v7_tt_lockless.py).
+// NOT used by alpha_beta — production search continues to call info.tt->probe
+// / info.tt->store directly per the Plan 03-01 D-01 wiring contract.
+
+Engine::TTProbeResult Engine::tt_probe(uint64_t hash) {
+    TTEntry entry{};
+    bool hit = tt_.probe(hash, entry);
+    return TTProbeResult{
+        hit,
+        int(entry.best_move),
+        int(entry.score),
+        int(entry.depth),
+        int(entry.flag),
+        int(entry.age),
+    };
+}
+
+void Engine::tt_store(uint64_t hash, int best_move, int score, int depth, int flag) {
+    tt_.store(hash,
+              static_cast<Move>(best_move & 0xFFFF),
+              score,
+              depth,
+              static_cast<TTFlag>(flag & 0xFF));
+}
+
+void Engine::tt_clear()      { tt_.clear(); }
+void Engine::tt_new_search() { tt_.new_search(); }
+
 } // namespace v7

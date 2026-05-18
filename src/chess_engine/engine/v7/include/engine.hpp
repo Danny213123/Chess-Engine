@@ -83,6 +83,32 @@ public:
 
     uint64_t nodes() const { return nodes_.load(std::memory_order_relaxed); }
 
+    // ------------------------------------------------------------------
+    // Plan 03-05 — test-only TT introspection surface (PAR-01/02).
+    // ------------------------------------------------------------------
+    // Exposed for tests/test_v7_tt_lockless.py so the lockless XOR/replacement
+    // contract can be exercised end-to-end via the Python binding without a
+    // C++ test runner. NOT part of the production search API; never called
+    // by alpha_beta. Public so &v7::Engine::tt_* pointer-to-member works.
+
+    // tt_probe(hash) → dict-like tuple (hit, best_move, score, depth, flag, age)
+    //   On miss returns (false, 0, 0, 0, 0, 0).
+    struct TTProbeResult {
+        bool hit;
+        int best_move;
+        int score;
+        int depth;
+        int flag;
+        int age;
+    };
+    TTProbeResult tt_probe(uint64_t hash);
+    void          tt_store(uint64_t hash, int best_move, int score, int depth, int flag);
+    void          tt_clear();
+    void          tt_new_search();
+    uint64_t      tt_num_entries() const { return tt_.num_entries(); }
+    uint64_t      tt_hits()        const { return tt_.hits(); }
+    uint64_t      tt_misses()      const { return tt_.misses(); }
+
 private:
     std::atomic<bool>     stop_flag_{false};
     std::atomic<uint64_t> nodes_{0};
