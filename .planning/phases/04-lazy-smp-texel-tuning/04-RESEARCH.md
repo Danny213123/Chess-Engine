@@ -827,37 +827,45 @@ Phase 4 has critical external dependencies. This host (Windows, current research
 | A9 | gen_coeffs.py + CMake `add_custom_command` correctly re-fires on coeffs.json change with no spurious rebuild | Pitfall 4 | Verify with `touch coeffs.json && make` smoke test in 04-03 |
 | A10 | ADAM defaults from texel-tuner upstream (typically β1=0.9, β2=0.999, lr=1.0 for Texel) are acceptable starting points | TUNE-07 | Loss-curve diagnostic in 04-03 Task X; tune only if stall observed |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All six questions below were resolved during the Phase 4 planning pass (commit `a00fc2a`). Each carries an explicit `RESOLVED:` line citing the plan/task that locks the decision. Recommendations have been incorporated into plan actions — no further research needed.
 
 1. **Where does the `Threads` value flow through the binding?**
    - What we know: `Engine::set_option("Threads", "4")` is the clean path; v7_uci already routes setoption correctly.
    - What's unclear: Whether `python_bindings.cpp` needs ANY new binding (e.g., a `set_threads` shortcut) or whether all callers go through `set_option`. CONTEXT D-04 implies set_option only.
    - Recommendation: NO new binding. Python callers use `engine.set_option("Threads", "4")`. Confirms minimal surface change to python_bindings.cpp.
+   - **RESOLVED: No new pybind11 binding. Callers route through `engine.set_option("Threads", N)`; `python_bindings.cpp` is untouched. Locked by Plan 04-01 Task 2 (PATTERNS.md note 31: "no edit expected").**
 
 2. **Where does the rescaled margin live — coeffs.json or search constants?**
    - What we know: RFP/futility/ProbCut margin constants currently live in search source (e.g. as `const int RFP_MARGIN_PER_DEPTH`).
    - What's unclear: D-12 doesn't say whether the rescale writes to coeffs.json (with new `_meta.margins`) or patches the C++ constants directly.
    - Recommendation: Add to coeffs.json (`_meta.margins`) so the codegen pipeline emits them — keeps SSoT discipline. Plan 04-04 owns the schema extension.
+   - **RESOLVED: In-place patch of `include/search.hpp` + `src/search.cpp` constants via `tools/rescale_margins.py` regex codemod (NOT coeffs.json `_meta.margins`). Rationale: existing constants are already build-time-fixed and the rescale is a one-shot pre-ship operation, not a runtime knob. Locked by Plan 04-04 Task 1.**
 
 3. **Does Plan 04-01 modify Engine::search signature or stay compatible?**
    - What we know: Existing signature is `Engine::search(fen, depth, time_ms) -> SearchResult`.
    - What's unclear: Whether the pool internally posts work to all helpers when `Threads > 1` (signature unchanged) or whether a new entry point exists.
    - Recommendation: Keep signature stable. Internal change only — `Engine::search` reads `options_.Threads`, posts to pool, joins, returns worker[0] result.
+   - **RESOLVED: Signature unchanged. `Engine::search` reads `options_.Threads`, internally drives the pool, joins, returns worker[0] result. Locked by Plan 04-01 Task 2 action ("signature MUST NOT change").**
 
 4. **Should PAR-09 use Hash=64 (UI default) or Hash=256 (gauntlet default)?**
    - What we know: Phase 2 gauntlets used Hash=64. Lazy SMP gains scale with TT size.
    - What's unclear: Which is the canonical gauntlet config for PAR-09.
    - Recommendation: Hash=64 to match Phase 2 (apples-to-apples gauntlet config); document explicitly in Plan 04-02. If Elo borderline, re-run with Hash=256 as diagnostic.
+   - **RESOLVED: Hash=64 across all Phase 4 gauntlets (PAR-09, seed-decider, SC#6, rescale-verify) for apples-to-apples comparability with Phase 2 baseline. Locked by Plan 04-02 frontmatter + Plan 04-04 gauntlet configs.**
 
 5. **Does the vendored texel-tuner need its own CMakeLists or does CMake `add_subdirectory(tools/texel-tuner)` Just Work?**
    - What we know: Upstream is C++ with its own CMake setup `[ASSUMED]`.
    - What's unclear: Whether upstream's CMake gracefully consumes an externally-defined `v7_eval_static` target.
    - Recommendation: 04-03 Task 1 (verify upstream layout) is the first thing the executor agent does; treat as one of the highest-priority knowledge gaps.
+   - **RESOLVED: Deferred to runtime via verify-first step. Plan 04-03 Task 1 step (a) is "clone upstream, inspect CMakeLists, decide adapter shim vs `add_subdirectory()` based on actual layout" — explicit early decision branch with documented fallback (write a thin `tools/texel-tuner-shim/CMakeLists.txt` that exposes only the tuner main + links `v7_eval_static`).**
 
 6. **What does PAR-03 TSan gate actually report when Lazy SMP runs?**
    - What we know: PAR-03 TSan harness exists (Phase 3 03-05); runtime gate is deferred on build host.
    - What's unclear: Whether the harness covers the search path that workers actually traverse (not just probe/store).
    - Recommendation: When PAR-03 clears on build host, extend the harness in Plan 04-01 Wave 0 to run Engine::search with `Threads=16` under TSan for a short duration. Catches any new races introduced by the worker refactor.
+   - **RESOLVED: Plan 04-01 Wave 0 extends the Phase 3 PAR-03 TSan harness to run `Engine::search` with `Threads=16` for a short duration once Phase 3 Gate 7 clears. The extended harness is a build-host-only deferred gate, not a CI sentinel.**
 
 ## Recommended Plan Shape
 
