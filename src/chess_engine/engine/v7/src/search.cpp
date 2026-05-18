@@ -58,7 +58,7 @@ void init_lmr_table() {
 // Budget = remaining/moves_to_go + 95% of increment. Clamped to remaining*9/10
 // so the search always leaves at least 10% of the wall-clock budget unused —
 // covers OS scheduling jitter, GIL re-acquisition, and the time it takes for
-// stop() to propagate through the % 4096 polling cadence.
+// stop() to propagate through the % 1024 polling cadence (Plan 04-01 Pitfall 10 tightening).
 
 TimeManager TimeManager::allocate(int remaining_ms, int increment_ms, int moves_to_go) {
     int mtg = std::max(moves_to_go, 1);
@@ -76,7 +76,7 @@ TimeManager TimeManager::allocate(int remaining_ms, int increment_ms, int moves_
 int quiescence(Board& board, int alpha, int beta, SearchInfo& info, int ply) {
     info.nodes.fetch_add(1, std::memory_order_relaxed);
 
-    if (info.stopped || (info.nodes % 4096 == 0 && info.check_time())) {
+    if (info.stopped || (info.nodes % 1024 == 0 && info.check_time())) {
         return 0;
     }
 
@@ -171,7 +171,7 @@ int alpha_beta(Board& board, int depth, int alpha, int beta,
                SearchInfo& info, int ply,
                bool do_null) {
 
-    if (info.stopped || (info.nodes % 4096 == 0 && info.check_time())) {
+    if (info.stopped || (info.nodes % 1024 == 0 && info.check_time())) {
         return 0;
     }
 
@@ -1065,7 +1065,38 @@ SearchResultFull iterative_deepening(Board& board, SearchInfo& info, bool verbos
     // The old code read info.depth which was silently overwritten by the loop body.
     int max_depth = (info.max_depth > 0) ? std::min(info.max_depth, MAX_PLY - 1) : MAX_PLY - 1;
 
+    // Plan 04-01 PAR-06 — Berserk-style depth-stagger for helper threads.
+    //
+    // Helper workers (worker_id > 0) skip certain iteration depths to diverge
+    // from the main thread and explore complementary parts of the search tree.
+    // This reduces the fraction of redundant work when multiple threads run
+    // iterative deepening on the same position simultaneously.
+    //
+    // Array source: canonical published values from RESEARCH Code Example §2.
+    // (Berserk upstream arrays as of 2024; verified against published open-source
+    //  documentation — see 04-RESEARCH.md Pattern 2 note on [ASSUMED] constants.)
+    //
+    //   SkipDepths[i] — skip iterations where (depth + SkipPhases[i]) % SkipDepths[i] != 0
+    //   SkipPhases[i] — per-helper phase offset
+    //
+    // Index: idx = (worker_id - 1) % 20 (helper_id 0..19 cyclic)
+    static constexpr int SkipDepths[20] = {
+        1, 1, 2, 2, 2, 3, 3, 3, 4, 4,
+        4, 5, 5, 5, 6, 6, 6, 7, 7, 7
+    };
+    static constexpr int SkipPhases[20] = {
+        0, 1, 0, 1, 2, 0, 1, 2, 0, 1,
+        2, 0, 1, 2, 0, 1, 2, 0, 1, 2
+    };
+
     for (int depth = 1; depth <= max_depth && !info.stopped; ++depth) {
+        // PAR-06: helper threads skip certain depth iterations to diverge from main.
+        // Main thread (worker_id == 0) always runs all depths.
+        if (info.worker_id > 0) {
+            int idx = (info.worker_id - 1) % 20;
+            if ((depth + SkipPhases[idx]) % SkipDepths[idx] != 0) continue;
+        }
+
         info.depth = depth;  // per-iteration counter (safe now — cap is in max_depth)
 
         // D-03 Bug #3 fix: reset PV length at root before each depth iteration.

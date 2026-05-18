@@ -170,8 +170,9 @@ struct SearchInfo {
     // Stop control
     std::atomic<bool> stopped{false};
 
-    // Thread count
+    // Thread count + worker identity (Plan 04-01 D-03)
     int num_threads = 1;
+    int worker_id   = 0;  // 0 = main thread (no stagger); 1..N-1 = helpers (depth-stagger)
 
     // --- V7 additions (pre-C1 must-fixes) ---
     std::atomic<bool>* external_stop = nullptr;  // FOUND-04 — points at Engine::stop_flag_
