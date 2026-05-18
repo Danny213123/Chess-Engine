@@ -158,6 +158,33 @@ if (OpenMP_CXX_FOUND)
 endif()
 
 # =============================================================================
+# tt_tsan_stress — Plan 03-05 Task 2 (PAR-03 TSan stress harness)
+# =============================================================================
+#
+# Standalone executable that drives the lockless TT with 16 threads × 60s of
+# random probe/store under ThreadSanitizer (CONTEXT D-08). Only built on
+# GNU/Clang — MSVC has no TSan support. The -fsanitize=thread flags are
+# scoped to this target alone so the main v7_engine pybind module continues
+# to build unaffected (additive-target discipline mirroring v6/CMakeLists.txt's
+# v6_uci block).
+#
+# Build/run wrapper: scripts/tt_tsan_stress.sh — configures build-tsan/ with
+# clang++, builds this target, runs the binary, greps stderr for
+# "WARNING: ThreadSanitizer". The PAR-03 acceptance gate (Plan 03-05 Task 3)
+# is a build-host-only human checkpoint.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_executable(tt_tsan_stress
+        ${CMAKE_CURRENT_SOURCE_DIR}/tt_tsan_stress.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/tt.cpp
+    )
+    target_include_directories(tt_tsan_stress PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_compile_options(tt_tsan_stress PRIVATE -fsanitize=thread -g -O1)
+    target_link_options(tt_tsan_stress PRIVATE -fsanitize=thread)
+endif()
+
+# =============================================================================
 # Fathom (Syzygy probing) — pre-staged in Wave 2 with EXISTS guard
 # =============================================================================
 #
